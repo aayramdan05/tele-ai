@@ -369,16 +369,19 @@ class TelegramService {
       userPrompt = `Tolong buatkan video Reels rasio 16:9 dengan judul atas dan bawah bertema '${topic}'. Render videonya dan kirimkan hasilnya ke saya.`;
     }
 
-    // Send initial processing ack
+    // Send initial processing ack with background info and estimation
+    let progressMsg = null;
     if (hasPhoto) {
-      await this.sendMessage(chatId, `🖼️ *Menerima Gambar...*\n⏳ AI Agent sedang menganalisis gambar Anda...`, threadId);
+      progressMsg = await this.sendMessage(chatId, `🖼️ *Menganalisis Gambar di Background...*\n⏳ _AI Agent sedang memproses & memeriksa gambar Anda (estimasi: ~30-60 detik)..._`, threadId);
     } else if (hasDocument) {
-      await this.sendMessage(chatId, `📄 *Menerima Dokumen...*\n⏳ AI Agent sedang membaca file dokumen Anda...`, threadId);
+      progressMsg = await this.sendMessage(chatId, `📄 *Membaca Dokumen di Background...*\n⏳ _AI Agent sedang membaca file dokumen Anda di VPS..._`, threadId);
     } else if (isMedia) {
-      await this.sendMessage(chatId, `🎬 *Memproses Pembuatan Video Reels...*\n⏳ _Sedang mencari, memotong highlight, dan merender video di VPS..._\n_Estimasi: ~30-60 detik. File video akan otomatis dikirim ke sini begitu siap._`, threadId);
+      progressMsg = await this.sendMessage(chatId, `🎬 *Tugas Berjalan di Background (Media/Reels)...*\n⏳ _Sedang mencari, memotong highlight, dan merender video di VPS._\n⏱️ _Estimasi: ~2 - 10 menit. Proses berjalan di background, pesan ini akan terhapus otomatis setelah selesai._`, threadId);
     } else {
-      await this.sendMessage(chatId, `⏳ *Sedang diproses...*\nAI Agent di VPS sedang mengeksekusi permintaan Anda.`, threadId);
+      progressMsg = await this.sendMessage(chatId, `⏳ *Tugas Berjalan di Background...*\n🤖 _AI Agent di VPS sedang mengeksekusi permintaan Anda (estimasi: ~1 - 5 menit). Pesan ini otomatis dihapus setelah selesai._`, threadId);
     }
+
+    const progressMsgId = (progressMsg && progressMsg.result && progressMsg.result.message_id) ? progressMsg.result.message_id : null;
 
     // Send typing action periodically
     const typingInterval = setInterval(() => {
@@ -398,12 +401,23 @@ class TelegramService {
 
       clearInterval(typingInterval);
 
+      // Auto-delete the "Sedang diproses..." status message so the chat stays clean and tidy
+      if (progressMsgId) {
+        await this.deleteMessage(chatId, progressMsgId).catch(() => {});
+      }
+
       // Send final text reply
       const replyText = taskResult.text || '✅ Permintaan selesai dikerjakan.';
       await this.sendMessage(chatId, replyText, threadId);
 
     } catch (err) {
       clearInterval(typingInterval);
+
+      // Also clean up the status message on error
+      if (progressMsgId) {
+        await this.deleteMessage(chatId, progressMsgId).catch(() => {});
+      }
+
       await this.sendMessage(chatId, `❌ *Terjadi Kesalahan saat memproses permintaan:*\n\`${err.message}\``, threadId);
     }
   }
@@ -443,6 +457,26 @@ class TelegramService {
     } catch (err) {
       console.error('[TELEGRAM] Error sending message:', err.message);
       return { ok: false, error: err.message };
+    }
+  }
+
+  async deleteMessage(chatId, messageId) {
+    if (!chatId || !messageId) return false;
+    try {
+      const url = this.getApiUrl('deleteMessage');
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          message_id: messageId
+        })
+      });
+      const data = await res.json();
+      return data.ok;
+    } catch (err) {
+      console.error('[TELEGRAM] Gagal hapus status message:', err.message);
+      return false;
     }
   }
 

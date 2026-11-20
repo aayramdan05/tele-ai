@@ -149,7 +149,16 @@ class AgentEngine {
 
     let result;
     if (engine === 'agy') {
-      result = await this.executeAgyCLI(task, effectiveSettings);
+      try {
+        result = await this.executeAgyCLI(task, effectiveSettings);
+      } catch (agyErr) {
+        logger.logInfo('Agy CLI Mengalami Kendala / Timeout', `${agyErr.message}. Mencoba fallback ke Gemini Native Engine...`);
+        try {
+          result = await this.executeGeminiNative(task, effectiveSettings);
+        } catch (fallbackErr) {
+          throw agyErr; // Return original descriptive agy error if fallback also fails
+        }
+      }
     } else {
       result = await this.executeGeminiNative(task, effectiveSettings);
     }
@@ -241,7 +250,7 @@ class AgentEngine {
 
     const { spawn } = require('child_process');
     const isMediaTask = /video|reels|clip|download|render|mp4|podcast/i.test(task.prompt);
-    const timeoutMs = isMediaTask ? 600000 : 180000; // 10 minutes for video processing, 3 minutes for chat
+    const timeoutMs = isMediaTask ? 900000 : 600000; // 15 minutes for media processing, 10 minutes default for background tasks
 
     const result = await new Promise((resolve, reject) => {
       const child = spawn(agyPath, args, {
@@ -272,6 +281,10 @@ class AgentEngine {
         const cleanOut = stdout.trim();
         const cleanErr = stderr.trim();
         if (code !== 0 && !cleanOut) {
+          const isInterrupted = cleanErr.includes('interrupted') || cleanErr.includes('waiting for') || cleanErr.includes('idle');
+          if (isInterrupted) {
+            return reject(new Error(`Proses latar belakang di VPS memerlukan waktu pemrosesan lebih lama (melebihi batas timeout 10-15 menit) atau terhenti. Silakan periksa kembali atau gunakan instruksi yang lebih spesifik.`));
+          }
           return reject(new Error(`agy CLI keluar dengan exit code ${code}: ${cleanErr || 'Unknown error'}`));
         }
         resolve(cleanOut || cleanErr || 'Tugas selesai diproses.');
