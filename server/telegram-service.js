@@ -100,14 +100,19 @@ class TelegramService {
   }
 
   async handleUpdate(update) {
-    if (!update.message || !update.message.text) return;
+    if (!update.message) return;
 
     const msg = update.message;
+    const hasPhoto = Array.isArray(msg.photo) && msg.photo.length > 0;
+    const hasDocument = !!msg.document;
+    let text = (msg.text || msg.caption || '').trim();
+
+    if (!text && !hasPhoto && !hasDocument) return;
+
     const chatId = String(msg.chat.id);
     const threadId = msg.message_thread_id || null;
     const isGroup = msg.chat.type === 'group' || msg.chat.type === 'supergroup';
     const username = msg.from.username || msg.from.first_name || 'User';
-    let text = msg.text.trim();
 
     // If bot is inside group / forum supergroup
     if (isGroup) {
@@ -117,11 +122,10 @@ class TelegramService {
       const isCommand = text.startsWith('/');
 
       // In the main group / General chat (no threadId), require @mention, reply, or slash command
-      // to avoid replying to every general human conversation.
       // BUT inside a forum topic (threadId !== null), each topic is a dedicated agent room:
       // respond directly to ALL messages without requiring @mention!
       if (!threadId) {
-        if (!isMentioned && !isReplyToBot && !isCommand) {
+        if (!isMentioned && !isReplyToBot && !isCommand && !hasPhoto && !hasDocument) {
           return;
         }
       }
@@ -326,15 +330,51 @@ class TelegramService {
     }
 
     let userPrompt = text;
-    const isMedia = /video|reels|clip|download|render|mp4/i.test(text);
+    let attachedImagePath = null;
+    let attachedDocPath = null;
 
-    if (text.startsWith('/reels')) {
-      const topic = text.replace('/reels', '').trim() || 'podcast inspirasi viral';
+    // Handle attached Photo
+    if (hasPhoto) {
+      try {
+        const photo = msg.photo[msg.photo.length - 1]; // Highest resolution
+        const tempName = `img_${Date.now()}_${photo.file_unique_id}.jpg`;
+        const savePath = path.join(__dirname, '..', 'data', 'temp', tempName);
+        attachedImagePath = await this.downloadTelegramFile(photo.file_id, savePath);
+        logger.logInfo('Gambar Diterima dari Telegram', `Tersimpan di ${tempName} (${Math.round((photo.file_size || 0) / 1024)} KB)`);
+        if (!userPrompt) {
+          userPrompt = 'Tolong periksa dan analisis gambar yang saya kirimkan ini.';
+        }
+      } catch (err) {
+        console.error('[TELEGRAM] Gagal download foto:', err.message);
+      }
+    } else if (hasDocument) {
+      try {
+        const doc = msg.document;
+        const cleanName = (doc.file_name || `doc_${Date.now()}`).replace(/[^a-zA-Z0-9._-]/g, '_');
+        const savePath = path.join(__dirname, '..', 'data', 'temp', cleanName);
+        attachedDocPath = await this.downloadTelegramFile(doc.file_id, savePath);
+        logger.logInfo('Dokumen Diterima dari Telegram', `Tersimpan di ${cleanName}`);
+        if (!userPrompt) {
+          userPrompt = `Tolong baca dan periksa isi file dokumen '${cleanName}' yang saya lampirkan ini.`;
+        }
+      } catch (err) {
+        console.error('[TELEGRAM] Gagal download dokumen:', err.message);
+      }
+    }
+
+    const isMedia = /video|reels|clip|download|render|mp4/i.test(userPrompt);
+
+    if (userPrompt.startsWith('/reels')) {
+      const topic = userPrompt.replace('/reels', '').trim() || 'podcast inspirasi viral';
       userPrompt = `Tolong buatkan video Reels rasio 16:9 dengan judul atas dan bawah bertema '${topic}'. Render videonya dan kirimkan hasilnya ke saya.`;
     }
 
     // Send initial processing ack
-    if (isMedia) {
+    if (hasPhoto) {
+      await this.sendMessage(chatId, `🖼️ *Menerima Gambar...*\n⏳ AI Agent sedang menganalisis gambar Anda...`, threadId);
+    } else if (hasDocument) {
+      await this.sendMessage(chatId, `📄 *Menerima Dokumen...*\n⏳ AI Agent sedang membaca file dokumen Anda...`, threadId);
+    } else if (isMedia) {
       await this.sendMessage(chatId, `🎬 *Memproses Pembuatan Video Reels...*\n⏳ _Sedang mencari, memotong highlight, dan merender video di VPS..._\n_Estimasi: ~30-60 detik. File video akan otomatis dikirim ke sini begitu siap._`, threadId);
     } else {
       await this.sendMessage(chatId, `⏳ *Sedang diproses...*\nAI Agent di VPS sedang mengeksekusi permintaan Anda.`, threadId);
@@ -351,6 +391,8 @@ class TelegramService {
         user: username,
         chatId: chatId,
         threadId: threadId,
+        imagePath: attachedImagePath,
+        docPath: attachedDocPath,
         source: isGroup ? 'telegram_group' : 'telegram'
       });
 
@@ -463,6 +505,29 @@ class TelegramService {
       throw new Error(`Telegram upload failed: ${data.description || 'Unknown error'}`);
     }
     return data;
+  }
+
+  async downloadTelegramFile(fileId, savePath) {
+    const getFileUrl = this.getApiUrl('getFile');
+    const res = await fetch(`${getFileUrl}?file_id=${fileId}`);
+    const data = await res.json();
+    if (!data.ok || !data.result || !data.result.file_path) {
+      throw new Error(`Gagal mengambil info file Telegram: ${data.description || 'Unknown error'}`);
+    }
+
+    const token = db.getSettings().telegram_bot_token;
+    const downloadUrl = `https://api.telegram.org/file/bot${token}/${data.result.file_path}`;
+    const fileRes = await fetch(downloadUrl);
+    if (!fileRes.ok) {
+      throw new Error(`Gagal mendownload file dari Telegram API: ${fileRes.statusText}`);
+    }
+
+    const arrayBuffer = await fileRes.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    const dir = path.dirname(savePath);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(savePath, buffer);
+    return savePath;
   }
 }
 

@@ -219,7 +219,16 @@ class AgentEngine {
     const sharedContext = sharedMemory.getSystemContext();
     const persona = settings.active_persona;
     const personaInstruction = persona ? `\n\nPERAN KHUSUS ANDA DI TOPIC INI:\n${persona.instruction}` : '';
-    const fullPrompt = `${SYSTEM_INSTRUCTION}${personaInstruction}\n${sharedContext}\n\n[USER REQUEST (${task.user || 'Admin'}) via ${task.source || 'console'}]:\n${task.prompt}\n\nCatatan Penting:\n1. Jika membuat file video/reels, gunakan helper 'python scripts/clipper-helper.py' dan simpan di 'data/output'.\n2. Sebutkan nama file output lengkapnya di jawaban akhir agar sistem otomatis mengirimkannya ke Telegram.`;
+    
+    let mediaNote = '';
+    if (task.imagePath) {
+      mediaNote += `\n\n[FILE GAMBAR TERLAMPIR DARI USER]:\nPath: "${task.imagePath}"\nSilakan gunakan tool yang relevan (seperti read_file atau python script) untuk memeriksa dan menganalisis gambar ini.`;
+    }
+    if (task.docPath) {
+      mediaNote += `\n\n[FILE DOKUMEN TERLAMPIR DARI USER]:\nPath: "${task.docPath}"\nSilakan baca file tersebut menggunakan tool file_read atau terminal.`;
+    }
+
+    const fullPrompt = `${SYSTEM_INSTRUCTION}${personaInstruction}\n${sharedContext}${mediaNote}\n\n[USER REQUEST (${task.user || 'Admin'}) via ${task.source || 'console'}]:\n${task.prompt}\n\nCatatan Penting:\n1. Jika membuat file video/reels, gunakan helper 'python scripts/clipper-helper.py' dan simpan di 'data/output'.\n2. Jika membuat file gambar/chart/visual, simpan di 'data/output'.\n3. Sebutkan nama file output lengkapnya di jawaban akhir agar sistem otomatis mengirimkannya ke Telegram.`;
 
     logger.logToolCall('agy_cli', `agy -p ... --model ${modelName}`);
 
@@ -427,12 +436,30 @@ class AgentEngine {
     ];
 
     const sharedContext = sharedMemory.getSystemContext();
+    const userParts = [
+      { text: `${SYSTEM_INSTRUCTION}\n${sharedContext}\n\nPermintaan Pengguna via Telegram (@${task.user || 'Admin'}):\n${task.prompt}` }
+    ];
+
+    if (task.imagePath && fs.existsSync(task.imagePath)) {
+      try {
+        const imgBuffer = fs.readFileSync(task.imagePath);
+        const ext = path.extname(task.imagePath).toLowerCase();
+        const mimeType = ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : 'image/jpeg';
+        userParts.unshift({
+          inlineData: {
+            mimeType: mimeType,
+            data: imgBuffer.toString('base64')
+          }
+        });
+      } catch (imgErr) {
+        console.error('[AGENT] Gagal muat inline image data:', imgErr.message);
+      }
+    }
+
     const contents = [
       {
         role: 'user',
-        parts: [
-          { text: `${SYSTEM_INSTRUCTION}\n${sharedContext}\n\nPermintaan Pengguna via Telegram (@${task.user || 'Admin'}):\n${task.prompt}` }
-        ]
+        parts: userParts
       }
     ];
 
@@ -598,14 +625,14 @@ class AgentEngine {
   }
 
   /**
-   * Scan response text or output folder for created video/media files and auto-send to Telegram
+   * Scan response text or output folder for created video/media/image files and auto-send to Telegram
    */
   async checkForOutputFiles(chatId, responseText, threadId = null) {
     const sent = [];
     if (!chatId) return sent;
 
-    // Check regex for file paths mentioned in response (e.g. data/output/*.mp4)
-    const match = responseText.match(/(?:data[\\/]output[\\/][a-zA-Z0-9_\-.]+\.mp4|[a-zA-Z0-9_\-.]+\.mp4)/gi);
+    // Check regex for file paths mentioned in response (mp4, webm, png, jpg, jpeg, webp)
+    const match = responseText.match(/(?:data[\\/]output[\\/][a-zA-Z0-9_\-.]+\.(?:mp4|webm|png|jpg|jpeg|webp)|[a-zA-Z0-9_\-.]+\.(?:mp4|webm|png|jpg|jpeg|webp))/gi);
     if (match) {
       for (const rawPath of match) {
         let fullPath = path.resolve(rawPath);
@@ -614,7 +641,10 @@ class AgentEngine {
         }
         if (fs.existsSync(fullPath)) {
           try {
-            await telegramTool.sendFile(chatId, fullPath, '🎬 Video hasil Reels Anda sudah siap!', threadId);
+            const ext = path.extname(fullPath).toLowerCase();
+            const isVideo = ['.mp4', '.webm', '.mov'].includes(ext);
+            const caption = isVideo ? '🎬 Video hasil Reels Anda sudah siap!' : '🖼️ File gambar hasil permintaan Anda:';
+            await telegramTool.sendFile(chatId, fullPath, caption, threadId);
             sent.push(fullPath);
           } catch (e) {
             console.error('[AGENT] Gagal auto-send file:', e.message);
