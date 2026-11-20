@@ -16,14 +16,18 @@ class TelegramService {
     telegramTool.setTelegramService(this);
   }
 
+  getToken() {
+    return process.env.TELEGRAM_BOT_TOKEN || db.getSettings().telegram_bot_token || '';
+  }
+
   getApiUrl(method) {
-    const token = db.getSettings().telegram_bot_token;
+    const token = this.getToken();
     if (!token) throw new Error('Telegram Bot Token belum diatur.');
     return `https://api.telegram.org/bot${token}/${method}`;
   }
 
   async testConnection(token = null) {
-    const testToken = token || db.getSettings().telegram_bot_token;
+    const testToken = token || this.getToken();
     if (!testToken) {
       return { success: false, error: 'Token belum diisi.' };
     }
@@ -43,7 +47,7 @@ class TelegramService {
   }
 
   start() {
-    const token = db.getSettings().telegram_bot_token;
+    const token = this.getToken();
     if (!token) {
       console.log('[TELEGRAM] Bot Token belum diset, bot tidak dijalankan.');
       return;
@@ -69,7 +73,7 @@ class TelegramService {
   async pollLoop() {
     while (this.isPolling) {
       try {
-        const token = db.getSettings().telegram_bot_token;
+        const token = this.getToken();
         if (!token) {
           this.isPolling = false;
           break;
@@ -452,10 +456,27 @@ class TelegramService {
 
     const lower = prompt.toLowerCase();
 
-    // 3. Reels / Video Creation with specific topic
-    if (lower.includes('reels') || lower.includes('video') || lower.includes('clip') || lower.includes('potong') || lower.includes('/reels')) {
+    // 3. Inquiry / Looking for previous output files (e.g. "mana videonya", "mana filenya", "kirim lagi")
+    const isFileInquiry = /(?:mana|belum ada|belum masuk|kirim ulang|mana link|mana hasil)\s+(?:video|reels|file|klip|gambar|hasilnya|videonya)/i.test(prompt) ||
+      /^(?:mana|kirim)\s+(?:videonya|filenya|hasilnya|videony)\??$/i.test(cleanPrompt);
+    if (isFileInquiry) {
+      return `🔎 *Mencari & Mengambil File Hasil di Server VPS...*\n⏳ _Sedang memeriksa file output terbaru dan menyiapkan pengiriman ke Telegram..._\n⏱️ _Estimasi: ~10-25 detik. Pesan ini otomatis dihapus saat file terkirim._`;
+    }
+
+    // 4. Memory & Settings (e.g. "simpen settingan memori", "shared memory", "simpan persona")
+    const isMemoryOrSettings = /(?:memori|memory|simpan settingan|simpen settingan|save memory|shared memory|persona|catat|ingat)/i.test(prompt);
+    if (isMemoryOrSettings) {
+      return `🧠 *Memperbarui Memori & Pengaturan Server...*\n⏳ _Sedang menyimpan catatan preferensi ke database VPS..._\n⏱️ _Estimasi: ~10-25 detik. Pesan ini otomatis dihapus saat selesai._`;
+    }
+
+    // 5. Reels / Video Creation (STRICT: only if explicitly asking to create, cut, render, or generate video)
+    const isExplicitVideoRender = /(?:bikin|buat|render|potong|klip|generate|download|unduh)\s+(?:video|reels|klip|clip|yt|youtube)/i.test(prompt) ||
+      /^(?:buatkan|bikinin|render)\s+.*(?:reels|video)/i.test(cleanPrompt) ||
+      cleanPrompt.startsWith('/reels');
+
+    if (isExplicitVideoRender) {
       let topic = '';
-      const topicMatch = prompt.match(/(?:bertema|tentang|judul|mengenai|tema|video)\s+['"]?([^'"\n.,]+)['"]?/i);
+      const topicMatch = prompt.match(/(?:bertema|tentang|judul|mengenai|tema)\s+['"]?([^'"\n.,]+)['"]?/i);
       if (topicMatch && topicMatch[1] && topicMatch[1].length > 2) {
         topic = topicMatch[1].trim();
       } else {
@@ -466,8 +487,8 @@ class TelegramService {
       return `🎬 *Merender Video Reels${topicLabel}*\n⏳ _Sedang mencari materi, memotong klip, dan merender video FFmpeg di VPS..._\n⏱️ _Estimasi: ~1 - 3 menit. Pesan ini otomatis dihapus saat video siap._`;
     }
 
-    // 4. Script generation or downloader
-    if (lower.includes('script') || lower.includes('skrip') || lower.includes('bikin program') || lower.includes('buat kode') || lower.includes('download')) {
+    // 6. Script generation or downloader
+    if (lower.includes('script') || lower.includes('skrip') || lower.includes('bikin program') || lower.includes('buat kode') || lower.includes('bikin bot') || lower.includes('download')) {
       let taskSubject = '';
       const subjMatch = prompt.match(/(?:script|skrip|bikin|buat|download)\s+([^.,\n]+)/i);
       if (subjMatch && subjMatch[1]) {
@@ -477,29 +498,30 @@ class TelegramService {
       return `⚙️ *Menyusun & Menguji Script${label}*\n⏳ _Sedang menulis kode, memeriksa dependensi, dan mengeksekusinya di server..._\n⏱️ _Estimasi: ~30-90 detik. Pesan ini otomatis dihapus saat selesai._`;
     }
 
-    // 5. Analysis / System Admin / Server Check
-    if (lower.includes('analisa') || lower.includes('analisis') || lower.includes('cek server') || lower.includes('cek vps') || lower.includes('monitor') || lower.includes('ram') || lower.includes('cpu')) {
+    // 7. Analysis / System Admin / Server Check
+    if (lower.includes('analisa') || lower.includes('analisis') || lower.includes('cek server') || lower.includes('cek vps') || lower.includes('monitor') || lower.includes('ram') || lower.includes('cpu') || lower.includes('disk') || lower.includes('pm2')) {
       let focus = '';
       if (lower.includes('ram')) focus = 'RAM ';
       if (lower.includes('cpu')) focus += 'CPU ';
       if (lower.includes('disk')) focus += 'Disk ';
+      if (lower.includes('pm2')) focus += 'PM2 ';
       const focusLabel = focus ? ` (${focus.trim()})` : '';
       return `🔍 *Menganalisis Sistem Server${focusLabel}...*\n⏳ _Sedang mengumpulkan metrik, membaca log, dan menyusun laporan analitik..._\n⏱️ _Estimasi: ~20-45 detik. Pesan ini otomatis dihapus saat selesai._`;
     }
 
-    // 6. Skill installation
-    if (lower.includes('skill') || lower.includes('install') || lower.includes('pasang')) {
+    // 8. Skill installation
+    if (lower.includes('skill') || lower.includes('install skill') || lower.includes('pasang skill')) {
       const skillName = cleanPrompt.replace(/install|pasang|skill|tolong|buatkan/gi, '').trim().substring(0, 25);
       const sLabel = skillName ? `: "${skillName}"` : '';
       return `🛠️ *Menyiapkan & Menginstall Skill${sLabel}*\n⏳ _Sedang menyusun instruksi SKILL.md dan mendaftarkannya ke server..._\n⏱️ _Estimasi: ~20-40 detik. Pesan ini otomatis dihapus saat selesai._`;
     }
 
-    // 7. Clarification response or short answers (e.g. "1", "ya", "youtube", "lanjutkan")
+    // 9. Clarification response or short answers (e.g. "1", "ya", "youtube", "lanjutkan")
     if (cleanPrompt.length <= 15) {
-      return `⚡ *Memproses Pilihan: "${cleanPrompt}"*\n🤖 _Gemini sedang melanjutkan instruksi berdasarkan pilihan Anda..._\n⏱️ _Estimasi: ~15-30 detik. Pesan ini otomatis dihapus saat selesai._`;
+      return `⚡ *Memproses Jawaban: "${cleanPrompt}"*\n🤖 _Gemini sedang melanjutkan instruksi berdasarkan preferensi Anda..._\n⏱️ _Estimasi: ~15-30 detik. Pesan ini otomatis dihapus saat selesai._`;
     }
 
-    // 8. General conversational / customized prompt
+    // 10. General conversational / customized prompt
     const snippet = cleanPrompt.length > 45 ? cleanPrompt.substring(0, 42) + '...' : cleanPrompt;
     return `🤖 *Mengeksekusi: "${snippet}"*\n⏳ _AI Agent di VPS sedang memproses permintaan Anda..._\n⏱️ _Estimasi: ~20-60 detik. Pesan ini otomatis dihapus saat selesai._`;
   }
@@ -599,6 +621,24 @@ class TelegramService {
       method = 'sendVideo';
       field = 'video';
       await this.sendChatAction(chatId, 'upload_video', threadId);
+
+      // Try sendVideo first, but if Telegram rejects it (e.g. video codec, bitrate, or metadata issue),
+      // automatically fallback to sendDocument so the file is ALWAYS delivered to the user!
+      try {
+        if (process.platform === 'linux') {
+          return await this.sendFileViaCurl(method, field, chatId, fullPath, caption, threadId);
+        }
+        return await this.sendFileViaFetch(method, field, chatId, fullPath, caption, threadId);
+      } catch (videoErr) {
+        console.warn('[TELEGRAM] sendVideo gagal, fallback otomatis ke sendDocument:', videoErr.message);
+        method = 'sendDocument';
+        field = 'document';
+        await this.sendChatAction(chatId, 'upload_document', threadId);
+        if (process.platform === 'linux') {
+          return await this.sendFileViaCurl(method, field, chatId, fullPath, caption, threadId);
+        }
+        return await this.sendFileViaFetch(method, field, chatId, fullPath, caption, threadId);
+      }
     } else if (isPhoto) {
       method = 'sendPhoto';
       field = 'photo';
@@ -621,7 +661,7 @@ class TelegramService {
 
   async sendFileViaCurl(method, field, chatId, fullPath, caption, threadId) {
     const { execFile } = require('child_process');
-    const token = db.getSettings().telegram_bot_token;
+    const token = this.getToken();
     const url = `https://api.telegram.org/bot${token}/${method}`;
 
     const args = [
@@ -698,7 +738,7 @@ class TelegramService {
       throw new Error(`Gagal mengambil info file Telegram: ${data.description || 'Unknown error'}`);
     }
 
-    const token = db.getSettings().telegram_bot_token;
+    const token = this.getToken();
     const downloadUrl = `https://api.telegram.org/file/bot${token}/${data.result.file_path}`;
     const fileRes = await fetch(downloadUrl);
     if (!fileRes.ok) {

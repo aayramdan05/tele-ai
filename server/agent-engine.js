@@ -600,8 +600,19 @@ class AgentEngine {
           } else if (toolName === 'list_directory') {
             toolResult = fileTools.listDirectory(args.path || '.');
           } else if (toolName === 'telegram_send_file') {
-            toolResult = await telegramTool.sendFile(task.chatId, args.file_path, args.caption || '');
-            if (toolResult.success) filesSent.push(args.file_path);
+            const resolvedPath = args.file_path || args.path || args.command || (args.args && (args.args.file_path || args.args.path || args.args.command));
+            const caption = args.caption || (args.args && args.args.caption) || '';
+            const targetChat = args.chatId || (args.args && args.args.chatId) || task.chatId;
+            const targetThread = args.threadId || (args.args && args.args.threadId) || task.threadId;
+
+            if (resolvedPath) {
+              toolResult = await telegramTool.sendFile(targetChat, resolvedPath, caption, targetThread);
+              if (toolResult && (toolResult.ok || toolResult.result || toolResult.success)) {
+                filesSent.push(resolvedPath);
+              }
+            } else {
+              toolResult = { error: 'file_path tidak boleh kosong' };
+            }
           } else if (toolName === 'video_clipper') {
             const scriptPath = path.join(__dirname, '..', 'scripts', 'clipper-helper.py');
             const cleanSearch = (args.search_or_url || '').replace(/"/g, '');
@@ -673,29 +684,32 @@ class AgentEngine {
   /**
    * Scan response text or output folder for created video/media/image files and auto-send to Telegram
    */
-  async checkForOutputFiles(chatId, responseText, threadId = null) {
+  async checkForOutputFiles(chatId, responseText = '', threadId = null) {
     const sent = [];
     if (!chatId) return sent;
 
-    // Check regex for file paths mentioned in response (mp4, webm, png, jpg, jpeg, webp)
-    const match = responseText.match(/(?:data[\\/]output[\\/][a-zA-Z0-9_\-.]+\.(?:mp4|webm|png|jpg|jpeg|webp)|[a-zA-Z0-9_\-.]+\.(?:mp4|webm|png|jpg|jpeg|webp))/gi);
+    // 1. Check regex for file paths mentioned in response (mp4, webm, mov, png, jpg, jpeg, webp)
+    const match = responseText ? responseText.match(/(?:[a-zA-Z0-9_\-\/\\.]+\.(?:mp4|webm|mov|png|jpg|jpeg|webp))/gi) : null;
     if (match) {
       for (const rawPath of match) {
         let fullPath = path.resolve(rawPath);
         if (!fs.existsSync(fullPath)) {
           fullPath = path.join(__dirname, '..', rawPath);
         }
-        if (fs.existsSync(fullPath)) {
+        if (!fs.existsSync(fullPath)) {
+          fullPath = path.join(__dirname, '..', 'data', 'output', path.basename(rawPath));
+        }
+        if (fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) {
           try {
             const ext = path.extname(fullPath).toLowerCase();
             const isVideo = ['.mp4', '.webm', '.mov'].includes(ext);
-            const caption = isVideo ? '🎬 Video hasil Reels Anda sudah siap!' : '🖼️ File gambar hasil permintaan Anda:';
+            const caption = isVideo ? '🎬 Video hasil Reels Anda sudah siap!' : '🖼️ File hasil di server VPS:';
 
             // Send file with timeout safety (180s max) so it can never hang indefinitely
             const uploadPromise = telegramTool.sendFile(chatId, fullPath, caption, threadId);
             const timeoutPromise = new Promise((_, rej) => setTimeout(() => rej(new Error('Upload file timeout (180 detik)')), 180000));
             const uploadRes = await Promise.race([uploadPromise, timeoutPromise]);
-            if (uploadRes && uploadRes.success) {
+            if (uploadRes && (uploadRes.ok || uploadRes.result || uploadRes.success)) {
               sent.push(fullPath);
             }
           } catch (e) {
@@ -707,6 +721,43 @@ class AgentEngine {
         }
       }
     }
+
+    // 2. If nothing sent yet, inspect data/output for recent files created/modified in the last 15 minutes
+    if (sent.length === 0) {
+      try {
+        const outputDir = path.join(__dirname, '..', 'data', 'output');
+        if (fs.existsSync(outputDir)) {
+          const files = fs.readdirSync(outputDir)
+            .map(f => {
+              const p = path.join(outputDir, f);
+              try {
+                return { name: f, path: p, stat: fs.statSync(p) };
+              } catch (e) {
+                return null;
+              }
+            })
+            .filter(f => f && f.stat.isFile() && ['.mp4', '.mov', '.webm', '.png', '.jpg', '.jpeg', '.webp'].includes(path.extname(f.name).toLowerCase()))
+            .sort((a, b) => b.stat.mtimeMs - a.stat.mtimeMs);
+
+          const fifteenMinutesAgo = Date.now() - (15 * 60 * 1000);
+          const recentFiles = files.filter(f => f.stat.mtimeMs > fifteenMinutesAgo);
+
+          if (recentFiles.length > 0) {
+            const newest = recentFiles[0];
+            const ext = path.extname(newest.path).toLowerCase();
+            const isVideo = ['.mp4', '.webm', '.mov'].includes(ext);
+            const caption = isVideo ? '🎬 Video hasil proses Anda di VPS:' : '🖼️ File hasil di VPS:';
+            const uploadRes = await telegramTool.sendFile(chatId, newest.path, caption, threadId);
+            if (uploadRes && (uploadRes.ok || uploadRes.result || uploadRes.success)) {
+              sent.push(newest.path);
+            }
+          }
+        }
+      } catch (err) {
+        console.error('[AGENT] Error scanning data/output directory:', err.message);
+      }
+    }
+
     return sent;
   }
 }
