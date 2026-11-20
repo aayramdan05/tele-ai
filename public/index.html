@@ -128,6 +128,114 @@
           </div>
         </div>
 
+        <!-- USAGE & MODEL QUOTA (PIE CHARTS & ROLLING LIMITS) -->
+        <div class="quota-section">
+          <div class="section-title-wrap">
+            <h3 class="section-heading">Model Quota Usage</h3>
+            <span class="section-badge">Real-time Budgeting</span>
+          </div>
+
+          <div class="quota-grid">
+            <!-- Gemini Models Card -->
+            <div class="quota-card" id="card-quota-gemini">
+              <div class="quota-card-header">
+                <div class="quota-title-box">
+                  <h4 class="quota-model-title">Gemini Models</h4>
+                  <p class="quota-model-sub">gemini-3.8-flash-high, flash-low, pro</p>
+                </div>
+                <!-- Interactive Donut / Pie Chart -->
+                <div class="quota-pie-wrap">
+                  <svg class="donut-chart" viewBox="0 0 100 100" width="84" height="84">
+                    <circle class="donut-ring-bg" cx="50" cy="50" r="38" fill="none" stroke-width="7"></circle>
+                    <circle class="donut-ring-progress ring-emerald" id="gemini-donut-ring" cx="50" cy="50" r="38" fill="none" stroke-width="7" stroke-dasharray="238.76" stroke-dashoffset="23.87"></circle>
+                    <text class="donut-text" id="gemini-donut-text" x="50" y="54" text-anchor="middle">90%</text>
+                    <text class="donut-subtext" x="50" y="66" text-anchor="middle">left</text>
+                  </svg>
+                </div>
+              </div>
+
+              <div class="quota-limits-list">
+                <!-- Weekly limit -->
+                <div class="limit-item">
+                  <div class="limit-info">
+                    <span class="limit-name">Weekly limit</span>
+                    <span class="limit-reset" id="gemini-weekly-reset">Resets in 6d 21h</span>
+                  </div>
+                  <div class="limit-badge-wrap">
+                    <span class="limit-badge badge-green" id="gemini-weekly-pct">90% left</span>
+                  </div>
+                </div>
+                <div class="progress-bar-track">
+                  <div class="progress-bar-fill fill-emerald" id="gemini-weekly-bar" style="width: 90%;"></div>
+                </div>
+
+                <!-- 5h limit -->
+                <div class="limit-item">
+                  <div class="limit-info">
+                    <span class="limit-name">5h limit</span>
+                    <span class="limit-reset" id="gemini-5h-reset">Resets in 2h 30m</span>
+                  </div>
+                  <div class="limit-badge-wrap">
+                    <span class="limit-badge badge-cyan" id="gemini-5h-pct">68% left</span>
+                  </div>
+                </div>
+                <div class="progress-bar-track">
+                  <div class="progress-bar-fill fill-cyan" id="gemini-5h-bar" style="width: 68%;"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Claude and GPT models Card -->
+            <div class="quota-card" id="card-quota-claude">
+              <div class="quota-card-header">
+                <div class="quota-title-box">
+                  <h4 class="quota-model-title">Claude and GPT models</h4>
+                  <p class="quota-model-sub">claude-sonnet-4-6, claude-opus, gpt-oss-120b</p>
+                </div>
+                <!-- Interactive Donut / Pie Chart -->
+                <div class="quota-pie-wrap">
+                  <svg class="donut-chart" viewBox="0 0 100 100" width="84" height="84">
+                    <circle class="donut-ring-bg" cx="50" cy="50" r="38" fill="none" stroke-width="7"></circle>
+                    <circle class="donut-ring-progress ring-purple" id="claude-donut-ring" cx="50" cy="50" r="38" fill="none" stroke-width="7" stroke-dasharray="238.76" stroke-dashoffset="57.3"></circle>
+                    <text class="donut-text" id="claude-donut-text" x="50" y="54" text-anchor="middle">76%</text>
+                    <text class="donut-subtext" x="50" y="66" text-anchor="middle">left</text>
+                  </svg>
+                </div>
+              </div>
+
+              <div class="quota-limits-list">
+                <!-- Weekly limit -->
+                <div class="limit-item">
+                  <div class="limit-info">
+                    <span class="limit-name">Weekly limit</span>
+                    <span class="limit-reset" id="claude-weekly-reset">Resets in 6d 21h</span>
+                  </div>
+                  <div class="limit-badge-wrap">
+                    <span class="limit-badge badge-purple" id="claude-weekly-pct">76% left</span>
+                  </div>
+                </div>
+                <div class="progress-bar-track">
+                  <div class="progress-bar-fill fill-purple" id="claude-weekly-bar" style="width: 76%;"></div>
+                </div>
+
+                <!-- 5h limit -->
+                <div class="limit-item">
+                  <div class="limit-info">
+                    <span class="limit-name">5h limit</span>
+                    <span class="limit-reset" id="claude-5h-reset">Resets in 2h 28m</span>
+                  </div>
+                  <div class="limit-badge-wrap">
+                    <span class="limit-badge badge-amber" id="claude-5h-pct">53% left</span>
+                  </div>
+                </div>
+                <div class="progress-bar-track">
+                  <div class="progress-bar-fill fill-amber" id="claude-5h-bar" style="width: 53%;"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div class="dashboard-row">
           <div class="card card-graph">
             <div class="card-header">

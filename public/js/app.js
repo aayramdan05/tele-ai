@@ -129,8 +129,76 @@ async function loadStatus() {
 
     // Render hourly chart
     renderHourlyChart(metrics.hourly_distribution);
+
+    // Render Model Quotas & Pie Charts (Cursor / Antigravity Style)
+    if (stats.model_quotas) {
+      renderModelQuotas(stats.model_quotas);
+    }
   } catch (err) {
     console.error('Gagal memuat status:', err);
+  }
+}
+
+function renderModelQuotas(quotas) {
+  if (!quotas) return;
+  const circumference = 2 * Math.PI * 38; // ~238.76
+
+  // 1. Gemini Models
+  if (quotas.gemini) {
+    const g = quotas.gemini;
+    const weeklyPct = g.weekly.left_pct;
+    const fiveHPct = g.five_hour.left_pct;
+
+    const gRing = document.getElementById('gemini-donut-ring');
+    const gText = document.getElementById('gemini-donut-text');
+    if (gRing && gText) {
+      const offset = circumference * (1 - weeklyPct / 100);
+      gRing.style.strokeDashoffset = offset;
+      gText.textContent = `${weeklyPct}%`;
+    }
+
+    const gWeeklyPct = document.getElementById('gemini-weekly-pct');
+    const gWeeklyReset = document.getElementById('gemini-weekly-reset');
+    const gWeeklyBar = document.getElementById('gemini-weekly-bar');
+    if (gWeeklyPct) gWeeklyPct.textContent = `${weeklyPct}% left`;
+    if (gWeeklyReset) gWeeklyReset.textContent = `Resets in ${g.weekly.reset}`;
+    if (gWeeklyBar) gWeeklyBar.style.width = `${weeklyPct}%`;
+
+    const g5hPct = document.getElementById('gemini-5h-pct');
+    const g5hReset = document.getElementById('gemini-5h-reset');
+    const g5hBar = document.getElementById('gemini-5h-bar');
+    if (g5hPct) g5hPct.textContent = `${fiveHPct}% left`;
+    if (g5hReset) g5hReset.textContent = `Resets in ${g.five_hour.reset}`;
+    if (g5hBar) g5hBar.style.width = `${fiveHPct}%`;
+  }
+
+  // 2. Claude and GPT Models
+  if (quotas.claude_gpt) {
+    const c = quotas.claude_gpt;
+    const weeklyPct = c.weekly.left_pct;
+    const fiveHPct = c.five_hour.left_pct;
+
+    const cRing = document.getElementById('claude-donut-ring');
+    const cText = document.getElementById('claude-donut-text');
+    if (cRing && cText) {
+      const offset = circumference * (1 - weeklyPct / 100);
+      cRing.style.strokeDashoffset = offset;
+      cText.textContent = `${weeklyPct}%`;
+    }
+
+    const cWeeklyPct = document.getElementById('claude-weekly-pct');
+    const cWeeklyReset = document.getElementById('claude-weekly-reset');
+    const cWeeklyBar = document.getElementById('claude-weekly-bar');
+    if (cWeeklyPct) cWeeklyPct.textContent = `${weeklyPct}% left`;
+    if (cWeeklyReset) cWeeklyReset.textContent = `Resets in ${c.weekly.reset}`;
+    if (cWeeklyBar) cWeeklyBar.style.width = `${weeklyPct}%`;
+
+    const c5hPct = document.getElementById('claude-5h-pct');
+    const c5hReset = document.getElementById('claude-5h-reset');
+    const c5hBar = document.getElementById('claude-5h-bar');
+    if (c5hPct) c5hPct.textContent = `${fiveHPct}% left`;
+    if (c5hReset) c5hReset.textContent = `Resets in ${c.five_hour.reset}`;
+    if (c5hBar) c5hBar.style.width = `${fiveHPct}%`;
   }
 }
 
