@@ -142,6 +142,8 @@ class AgentEngine {
     ];
 
     const { spawn } = require('child_process');
+    const isMediaTask = /video|reels|clip|download|render|mp4|podcast/i.test(task.prompt);
+    const timeoutMs = isMediaTask ? 600000 : 180000; // 10 minutes for video processing, 3 minutes for chat
 
     const result = await new Promise((resolve, reject) => {
       const child = spawn(agyPath, args, {
@@ -149,7 +151,7 @@ class AgentEngine {
         env: { ...process.env },
         stdio: ['ignore', 'pipe', 'pipe'], // Immediately close stdin so CLI does not block on EOF
         windowsHide: true,
-        timeout: 120000 // 2 minutes max
+        timeout: timeoutMs
       });
 
       let stdout = '';

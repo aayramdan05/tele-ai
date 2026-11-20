@@ -79,12 +79,13 @@ def download_video(url_or_search):
         elif not found_id and len(lines) == 1:
             target_url = f"https://www.youtube.com/watch?v={lines[0]}"
 
-    # Download video to TEMP_DIR
+    # Download video to TEMP_DIR (prefer 720p for fast download & rendering on VPS)
     out_template = str(TEMP_DIR / "%(id)s.%(ext)s")
     dl_cmd = [
         "yt-dlp",
-        "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+        "-f", "bestvideo[height<=720]+bestaudio/best[height<=720]/best",
         "--merge-output-format", "mp4",
+        "--no-playlist",
         "-o", out_template,
         target_url
     ]
@@ -122,13 +123,24 @@ def process_video_ffmpeg(input_path, output_path, start_time="00:01:00", duratio
     clean_top = escape_text(title_top)
     clean_bot = escape_text(title_bottom)
 
-    # Detect font file on Windows to prevent fontconfig errors
+    # Detect font file on Windows and Linux to prevent fontconfig errors
     font_param = ""
     if os.name == "nt":
         for fp in ["C:/Windows/Fonts/arialbd.ttf", "C:/Windows/Fonts/arial.ttf"]:
             if os.path.exists(fp):
                 escaped_fp = fp.replace(":", r"\:")
                 font_param = f"fontfile='{escaped_fp}':"
+                break
+    else:
+        linux_fonts = [
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+            "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+        ]
+        for fp in linux_fonts:
+            if os.path.exists(fp):
+                font_param = f"fontfile='{fp}':"
                 break
 
     # Setup filtergraph depending on aspect ratio
@@ -158,8 +170,8 @@ def process_video_ffmpeg(input_path, output_path, start_time="00:01:00", duratio
         "-t", str(duration),
         "-vf", vf,
         "-c:v", "libx264",
-        "-preset", "fast",
-        "-crf", "22",
+        "-preset", "ultrafast",
+        "-crf", "24",
         "-c:a", "aac",
         "-b:a", "128k",
         str(output_path)

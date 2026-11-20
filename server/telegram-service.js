@@ -205,13 +205,19 @@ class TelegramService {
     }
 
     let userPrompt = text;
+    const isMedia = /video|reels|clip|download|render|mp4/i.test(text);
+
     if (text.startsWith('/reels')) {
       const topic = text.replace('/reels', '').trim() || 'podcast inspirasi viral';
       userPrompt = `Tolong buatkan video Reels rasio 16:9 dengan judul atas dan bawah bertema '${topic}'. Render videonya dan kirimkan hasilnya ke saya.`;
     }
 
     // Send initial processing ack
-    await this.sendMessage(chatId, `⏳ *Sedang diproses...*\nAI Agent di VPS sedang mengeksekusi permintaan Anda.`, threadId);
+    if (isMedia) {
+      await this.sendMessage(chatId, `🎬 *Memproses Pembuatan Video Reels...*\n⏳ _Sedang mencari, memotong highlight, dan merender video di VPS..._\n_Estimasi: ~30-60 detik. File video akan otomatis dikirim ke sini begitu siap._`, threadId);
+    } else {
+      await this.sendMessage(chatId, `⏳ *Sedang diproses...*\nAI Agent di VPS sedang mengeksekusi permintaan Anda.`, threadId);
+    }
 
     // Send typing action periodically
     const typingInterval = setInterval(() => {
