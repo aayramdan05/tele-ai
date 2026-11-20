@@ -20,6 +20,16 @@ Jika pengguna meminta Anda menjadi karakter atau peran khusus di chat/topic ini 
 [SAVE_PERSONA: {"name": "Nama Peran", "icon": "Emoji", "description": "Tugas utama peran ini", "instruction": "Panduan gaya bicara dan cara berpikir Anda sebagai peran ini", "model": "gemini-3.8-flash-low", "skills": ["skill1", "skill2"]}]
 Server akan mendeteksi tag tersebut, menyimpannya ke database, dan menghapus tag teknis tersebut sebelum jawaban dikirim ke pengguna.
 
+FITUR INSTALASI SKILL OTONOM (HERMES SKILLS SYSTEM):
+Jika pengguna meminta untuk menginstall atau menambahkan skill baru (contoh: "install skill scraper", "tambahkan skill crypto", "tolong install skill untuk cek performa server", "buatkan skill X"):
+1. Anda memiliki wewenang penuh untuk membuat dan menginstall skill secara mandiri.
+2. Buat file petunjuk skill di direktori '.agents/skills/<nama-skill>/SKILL.md' dengan YAML frontmatter (name & description) dan panduan instruksi cara kerja skill tersebut.
+3. Jika skill membutuhkan script helper (Python/Node.js/Bash), buat script tersebut di folder 'scripts/' atau 'server/tools/'.
+4. Jika membutuhkan paket library eksternal (seperti pip install atau npm install), jalankan atau sebutkan instruksinya.
+5. Anda WAJIB menyertakan tag format berikut di akhir respon Anda:
+[INSTALL_SKILL: {"name": "nama-skill", "description": "Deskripsi singkat fungsi skill", "instruction": "Panduan langkah skill"}]
+Server akan otomatis mendeteksi tag tersebut, mendaftarkan skill ke topic ini di database, dan menghapus tag teknis sebelum teks dikirimkan ke Telegram.
+
 FITUR MULTI-ACCOUNT & SHARED MEMORY:
 Server ini mendukung multi-akun AI Google yang berbagi memori bersama (Shared Memory). Anda dapat membaca status dari akun lain dan menyimpan informasi penting ke memori bersama agar dapat dilanjutkan secara mulus oleh akun lain.
 
@@ -157,6 +167,35 @@ class AgentEngine {
           result.text = result.text.replace(/\[SAVE_PERSONA:\s*\{.+?\}\]/s, '').trim();
         } catch (e) {
           console.error('[AGENT] Gagal parse SAVE_PERSONA JSON:', e.message);
+        }
+      }
+    }
+
+    // Auto-detect and persist dynamically installed skills from response
+    if (result.text && result.text.includes('[INSTALL_SKILL:')) {
+      const match = result.text.match(/\[INSTALL_SKILL:\s*(\{.+?\})\]/s);
+      if (match) {
+        try {
+          const skillObj = JSON.parse(match[1]);
+          const targetThread = task.threadId || task.chatId;
+          const skillName = skillObj.name ? skillObj.name.toLowerCase().replace(/[^a-z0-9-_]/g, '-') : 'custom-skill';
+          
+          // Ensure .agents/skills/<skillName>/SKILL.md exists on disk
+          const skillDir = path.join(__dirname, '..', '.agents', 'skills', skillName);
+          const skillFile = path.join(skillDir, 'SKILL.md');
+          if (!fs.existsSync(skillDir)) {
+            fs.mkdirSync(skillDir, { recursive: true });
+          }
+          if (!fs.existsSync(skillFile)) {
+            const skillContent = `---\nname: ${skillName}\ndescription: ${skillObj.description || 'Skill kustom yang diinstal oleh agen'}\n---\n\n# ${skillObj.name || skillName}\n${skillObj.instruction || skillObj.description || 'Panduan eksekusi skill.'}\n`;
+            fs.writeFileSync(skillFile, skillContent, 'utf8');
+          }
+
+          db.addTopicSkill(targetThread, skillName);
+          logger.logInfo(`Skill Berhasil Diinstall [#${targetThread}]`, `${skillName}: ${skillObj.description || ''}`);
+          result.text = result.text.replace(/\[INSTALL_SKILL:\s*\{.+?\}\]/s, '').trim();
+        } catch (e) {
+          console.error('[AGENT] Gagal parse INSTALL_SKILL JSON:', e.message);
         }
       }
     }

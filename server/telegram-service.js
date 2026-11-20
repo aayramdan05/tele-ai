@@ -110,16 +110,25 @@ class TelegramService {
     let text = msg.text.trim();
 
     // If bot is inside group / forum supergroup
-    if (isGroup && this.botInfo && this.botInfo.username) {
-      const mention = `@${this.botInfo.username}`;
-      const isReplyToBot = msg.reply_to_message && msg.reply_to_message.from && msg.reply_to_message.from.id === this.botInfo.id;
+    if (isGroup) {
+      const mention = (this.botInfo && this.botInfo.username) ? `@${this.botInfo.username}` : null;
+      const isMentioned = mention ? text.includes(mention) : false;
+      const isReplyToBot = msg.reply_to_message && msg.reply_to_message.from && this.botInfo && msg.reply_to_message.from.id === this.botInfo.id;
       const isCommand = text.startsWith('/');
 
-      if (!text.includes(mention) && !isReplyToBot && !isCommand) {
-        // Not addressed to the bot, ignore general group banter
-        return;
+      // In the main group / General chat (no threadId), require @mention, reply, or slash command
+      // to avoid replying to every general human conversation.
+      // BUT inside a forum topic (threadId !== null), each topic is a dedicated agent room:
+      // respond directly to ALL messages without requiring @mention!
+      if (!threadId) {
+        if (!isMentioned && !isReplyToBot && !isCommand) {
+          return;
+        }
       }
-      text = text.replace(mention, '').trim();
+
+      if (mention && isMentioned) {
+        text = text.replace(new RegExp(mention, 'gi'), '').trim();
+      }
     }
 
     const settings = db.getSettings();
@@ -139,12 +148,65 @@ class TelegramService {
 
     // Command handling (Hermes Agent & 9router shortcuts)
     if (text === '/start') {
-      await this.sendMessage(chatId, `🤖 *Tele-AI Studio — Multi-Persona Autonomous Agent*\n\nEngine Aktif: *${settings.active_engine}*\nModel Default: \`${settings.active_model}\`\n\n📌 *Daftar Perintah Cepat:*\n• \`/status\` - Cek kondisi server, engine & antrean\n• \`/persona\` - Cek persona agen di topic ini\n• \`/setpersona [key]\` - Set persona per topic (clipper / devops / coder / router)\n• \`/topics\` - Daftar semua persona per topic\n• \`/model [nama]\` - Cek / ubah model AI on-the-fly\n• \`/engine [nama]\` - Ganti engine (agy / gemini_oauth / gemini_api)\n• \`/stats\` - Detail metrik kuota token & biaya\n• \`/reels [tema]\` - Buat FB Reels otomatis (16:9 / 9:16)\n• \`/reset\` - Reset status Circuit Breaker\n• \`/help\` - Panduan lengkap\n\nKirim perintah apa saja, AI Agent akan mengeksekusinya di VPS.`, threadId);
+      await this.sendMessage(chatId, `🤖 *Tele-AI Studio — Multi-Persona Autonomous Agent*\n\nEngine Aktif: *${settings.active_engine}*\nModel Default: \`${settings.active_model}\`\n\n📌 *Daftar Perintah Cepat:*\n• \`/status\` - Cek kondisi server, engine & antrean\n• \`/persona\` - Cek persona agen di topic ini\n• \`/setpersona [key]\` - Set persona per topic (clipper / devops / coder / router)\n• \`/topics\` - Daftar semua persona per topic\n• \`/skills\` - Cek & pasang skills AI agen\n• \`/installskill [nama]\` - Install skill kustom secara instan\n• \`/model [nama]\` - Cek / ubah model AI on-the-fly\n• \`/engine [nama]\` - Ganti engine (agy / gemini_oauth / gemini_api)\n• \`/stats\` - Detail metrik kuota token & biaya\n• \`/reels [tema]\` - Buat FB Reels otomatis (16:9 / 9:16)\n• \`/reset\` - Reset status Circuit Breaker\n• \`/help\` - Panduan lengkap\n\nKirim perintah apa saja, AI Agent akan mengeksekusinya di VPS.`, threadId);
       return;
     }
 
     if (text === '/help') {
-      await this.sendMessage(chatId, `📖 *Panduan Penggunaan Tele-AI (Hermes Swarm + 9router):*\n\n👥 *Mode Agen Berbeda per Topic Telegram:*\nAnda bisa membuat topic terpisah di grup Telegram dengan persona & skills yang berbeda:\n1. Buka topic video/media $\rightarrow$ ketik \`/setpersona clipper\` (spesialis Reels & Clipper).\n2. Buka topic server $\rightarrow$ ketik \`/setpersona devops\` (spesialis Linux sysadmin & PM2).\n3. Buka topic coding $\rightarrow$ ketik \`/setpersona coder\` (spesialis Fullstack developer).\n4. Buka topic kuota $\rightarrow$ ketik \`/setpersona router\` (spesialis 9router kuota).\n\nKetik \`/persona\` untuk cek persona aktif di topic Anda.\n\nSemua perintah berjalan dalam antrean serial FIFO (Concurrency = 1) dengan circuit breaker anti-403.`, threadId);
+      await this.sendMessage(chatId, `📖 *Panduan Penggunaan Tele-AI (Hermes Swarm + 9router):*\n\n👥 *Mode Agen Berbeda per Topic Telegram:*\nSetiap forum topic di grup Telegram adalah ruang kerja tersendiri (tidak perlu @mention bot di dalam topic):\n1. Buka topic video/media $\rightarrow$ ketik \`/setpersona clipper\`\n2. Buka topic server $\rightarrow$ ketik \`/setpersona devops\`\n3. Buka topic coding $\rightarrow$ ketik \`/setpersona coder\`\n4. Buka topic kuota $\rightarrow$ ketik \`/setpersona router\`\n\n🛠️ *Otomatisasi Instalasi Skill:*\nAnda bisa meminta bot menginstall skill baru hanya dengan mengetik perintah di chat, misalnya:\n_“Tolong install skill web scraper”_\n_“Tambahkan skill crypto price tracker”_\nAtau ketik \`/skills\` untuk melihat daftar skill terpasang.`, threadId);
+      return;
+    }
+
+    if (text === '/skills') {
+      const installed = db.getInstalledSkills();
+      const currentPersona = threadId ? db.getTopicPersona(threadId) : null;
+      const activeSkills = (currentPersona && Array.isArray(currentPersona.skills)) ? currentPersona.skills : ['general'];
+
+      let skillMsg = `🛠️ *Skills System (Hermes Customizations)*\n\n`;
+      if (threadId && currentPersona) {
+        skillMsg += `🎭 *Skill Aktif di Topic #${threadId} (${currentPersona.name}):*\n`;
+        skillMsg += `• \`${activeSkills.join('`, `')}\`\n\n`;
+      }
+
+      skillMsg += `📦 *Daftar Skill Terinstall di VPS:*\n`;
+      if (installed.length === 0) {
+        skillMsg += `_Belum ada skill kustom di direktori .agents/skills._\n`;
+      } else {
+        for (const s of installed) {
+          skillMsg += `• *${s.name}*: _${s.description}_\n`;
+        }
+      }
+
+      skillMsg += `\n💡 *Cara Install Skill Baru:*\nCukup perintahkan bot secara natural:\n_“Tolong install skill web scraper”_\n_“Tambahkan skill crypto price tracker ke topic ini”_\nAtau ketik: \`/installskill <nama> [deskripsi]\``;
+
+      await this.sendMessage(chatId, skillMsg, threadId);
+      return;
+    }
+
+    if (text.startsWith('/installskill')) {
+      const parts = text.split(' ').filter(Boolean);
+      if (parts.length < 2) {
+        await this.sendMessage(chatId, `💡 *Format:* \`/installskill <nama_skill> [deskripsi]\`\nContoh: \`/installskill weather Cek ramalan cuaca via wttr.in\``, threadId);
+        return;
+      }
+      const skillName = parts[1].toLowerCase().replace(/[^a-z0-9-_]/g, '-');
+      const skillDesc = parts.slice(2).join(' ') || `Skill ${skillName} untuk otomasi server`;
+
+      const skillDir = path.join(__dirname, '..', '.agents', 'skills', skillName);
+      const skillFile = path.join(skillDir, 'SKILL.md');
+      if (!fs.existsSync(skillDir)) {
+        fs.mkdirSync(skillDir, { recursive: true });
+      }
+      if (!fs.existsSync(skillFile)) {
+        const skillContent = `---\nname: ${skillName}\ndescription: ${skillDesc}\n---\n\n# Skill ${skillName}\n${skillDesc}\n`;
+        fs.writeFileSync(skillFile, skillContent, 'utf8');
+      }
+
+      if (threadId) {
+        db.addTopicSkill(threadId, skillName);
+      }
+      logger.logInfo(`Skill Manual Diinstall via Telegram`, `${skillName}: ${skillDesc}`);
+      await this.sendMessage(chatId, `✅ *Skill '${skillName}' Berhasil Diinstall!*\n• Deskripsi: _${skillDesc}_\n• Lokasi: \`.agents/skills/${skillName}/SKILL.md\`${threadId ? `\n• Status: Aktif di Topic #${threadId}` : ''}`, threadId);
       return;
     }
 

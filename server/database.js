@@ -338,6 +338,50 @@ class Database {
     return entry;
   }
 
+  addTopicSkill(threadId, skillName) {
+    if (!threadId || !skillName) return null;
+    let persona = this.getTopicPersona(threadId);
+    if (!persona) {
+      persona = this.setTopicPersona(threadId, 'general');
+    }
+    if (!Array.isArray(persona.skills)) {
+      persona.skills = [];
+    }
+    if (!persona.skills.includes(skillName)) {
+      persona.skills.push(skillName);
+      this.data.topic_personas[String(threadId)] = persona;
+      this.save();
+    }
+    return persona;
+  }
+
+  getInstalledSkills() {
+    const skillsDir = path.join(__dirname, '..', '.agents', 'skills');
+    const skills = [];
+    if (fs.existsSync(skillsDir)) {
+      try {
+        const dirs = fs.readdirSync(skillsDir, { withFileTypes: true });
+        for (const d of dirs) {
+          if (d.isDirectory()) {
+            const skillFile = path.join(skillsDir, d.name, 'SKILL.md');
+            if (fs.existsSync(skillFile)) {
+              const content = fs.readFileSync(skillFile, 'utf8');
+              const descMatch = content.match(/description:\s*(.+)/i);
+              skills.push({
+                name: d.name,
+                path: skillFile,
+                description: descMatch ? descMatch[1].trim() : 'Custom skill'
+              });
+            }
+          }
+        }
+      } catch (e) {
+        console.error('[DB] Gagal baca direktori skills:', e.message);
+      }
+    }
+    return skills;
+  }
+
   deleteTopicPersona(threadId) {
     if (!threadId || !this.data.topic_personas) return false;
     delete this.data.topic_personas[String(threadId)];
