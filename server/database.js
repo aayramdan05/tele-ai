@@ -291,24 +291,41 @@ class Database {
     return all[String(threadId)] || null;
   }
 
-  setTopicPersona(threadId, personaKey, customName = null) {
+  setTopicPersona(threadId, personaData, customName = null) {
     if (!threadId) return null;
-    const template = PERSONA_TEMPLATES[personaKey] || PERSONA_TEMPLATES['general'];
     if (!this.data.topic_personas) this.data.topic_personas = {};
 
-    this.data.topic_personas[String(threadId)] = {
-      threadId: String(threadId),
-      key: template.key,
-      name: customName || template.name,
-      icon: template.icon,
-      description: template.description,
-      model: template.model,
-      skills: template.skills,
-      instruction: template.instruction,
-      updated_at: new Date().toISOString()
-    };
+    let entry;
+    if (typeof personaData === 'object' && personaData !== null) {
+      entry = {
+        threadId: String(threadId),
+        key: personaData.key || `custom-${Date.now()}`,
+        name: personaData.name || customName || 'Custom Specialist',
+        icon: personaData.icon || '✨',
+        description: personaData.description || personaData.name || 'Custom Persona AI',
+        model: personaData.model || 'gemini-3.8-flash-low',
+        skills: Array.isArray(personaData.skills) ? personaData.skills : ['general'],
+        instruction: personaData.instruction || `Anda adalah ${personaData.name}. Jawablah sesuai kepribadian ini.`,
+        updated_at: new Date().toISOString()
+      };
+    } else {
+      const template = PERSONA_TEMPLATES[personaData] || PERSONA_TEMPLATES['general'];
+      entry = {
+        threadId: String(threadId),
+        key: template.key,
+        name: customName || template.name,
+        icon: template.icon,
+        description: template.description,
+        model: template.model,
+        skills: template.skills,
+        instruction: template.instruction,
+        updated_at: new Date().toISOString()
+      };
+    }
+
+    this.data.topic_personas[String(threadId)] = entry;
     this.save();
-    return this.data.topic_personas[String(threadId)];
+    return entry;
   }
 
   deleteTopicPersona(threadId) {

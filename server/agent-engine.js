@@ -13,6 +13,13 @@ const telegramTool = require('./tools/telegram-tool');
 const SYSTEM_INSTRUCTION = `Anda adalah asisten AI Agent otonom yang berjalan di server VPS lokal (10.69.69.53).
 Anda menerima perintah langsung melalui chat Telegram. Anda memiliki akses penuh ke terminal dan file sistem server untuk mengeksekusi apapun yang diminta pengguna.
 
+FITUR AUTO-SYNTHESIS PERSONA PER-TOPIC (HERMES AGENT):
+Jika pengguna meminta Anda menjadi karakter atau peran khusus di chat/topic ini (contoh: "mulai sekarang kamu jadi desainer konten ya", "jadilah sysadmin debian", "topic ini khusus buat reels video", "jadilah konsultan keuangan pribadi"):
+1. Terima peran tersebut dengan antusias dan sebutkan nama peran baru Anda.
+2. Anda WAJIB menyertakan tag format berikut di akhir respon Anda agar server otomatis menyimpan persona ini secara permanen untuk topic ini:
+[SAVE_PERSONA: {"name": "Nama Peran", "icon": "Emoji", "description": "Tugas utama peran ini", "instruction": "Panduan gaya bicara dan cara berpikir Anda sebagai peran ini", "model": "gemini-3.8-flash-low", "skills": ["skill1", "skill2"]}]
+Server akan mendeteksi tag tersebut, menyimpannya ke database, dan menghapus tag teknis tersebut sebelum jawaban dikirim ke pengguna.
+
 FITUR MULTI-ACCOUNT & SHARED MEMORY:
 Server ini mendukung multi-akun AI Google yang berbagi memori bersama (Shared Memory). Anda dapat membaca status dari akun lain dan menyimpan informasi penting ke memori bersama agar dapat dilanjutkan secara mulus oleh akun lain.
 
@@ -135,6 +142,23 @@ class AgentEngine {
       result = await this.executeAgyCLI(task, effectiveSettings);
     } else {
       result = await this.executeGeminiNative(task, effectiveSettings);
+    }
+
+    // Auto-detect and persist dynamically synthesized persona from response
+    if (result.text && result.text.includes('[SAVE_PERSONA:')) {
+      const match = result.text.match(/\[SAVE_PERSONA:\s*(\{.+?\})\]/s);
+      if (match) {
+        try {
+          const personaObj = JSON.parse(match[1]);
+          const targetThread = task.threadId || task.chatId;
+          const saved = db.setTopicPersona(targetThread, personaObj);
+          logger.logInfo(`Persona Otomatis Disintesis & Disimpan [#${targetThread}]`, `${saved.icon} ${saved.name}`);
+          persona = saved;
+          result.text = result.text.replace(/\[SAVE_PERSONA:\s*\{.+?\}\]/s, '').trim();
+        } catch (e) {
+          console.error('[AGENT] Gagal parse SAVE_PERSONA JSON:', e.message);
+        }
+      }
     }
 
     // If inside a topic with a persona, badge the text nicely
@@ -342,6 +366,22 @@ class AgentEngine {
                 workspace_value: { type: 'STRING', description: 'Value status' }
               }
             }
+          },
+          {
+            name: 'set_custom_persona',
+            description: 'Menyimpan persona dan keahlian baru untuk topic chat Telegram ini secara otomatis',
+            parameters: {
+              type: 'OBJECT',
+              properties: {
+                name: { type: 'STRING', description: 'Nama peran persona (misal: "TikTok Content Strategist", "Linux Sysadmin")' },
+                icon: { type: 'STRING', description: 'Emoji ikon (misal: "📱", "💻", "🎬", "💰")' },
+                description: { type: 'STRING', description: 'Deskripsi singkat peran' },
+                instruction: { type: 'STRING', description: 'Instruksi sistem dan gaya bicara persona ini' },
+                model: { type: 'STRING', description: 'Model yang disarankan, misal "gemini-3.8-flash-low"' },
+                skills: { type: 'ARRAY', items: { type: 'STRING' }, description: 'Daftar keahlian' }
+              },
+              required: ['name', 'instruction']
+            }
           }
         ]
       }
@@ -466,6 +506,11 @@ class AgentEngine {
               sharedMemory.updateWorkspace({ [args.workspace_key]: args.workspace_value }, activeAccount ? activeAccount.email : 'Gemini');
             }
             toolResult = { success: true, message: 'Shared memory berhasil diperbarui dan disinkronkan ke seluruh akun.' };
+          } else if (toolName === 'set_custom_persona') {
+            const targetThread = task.threadId || task.chatId;
+            const saved = db.setTopicPersona(targetThread, args);
+            logger.logInfo(`Persona Otomatis Disimpan via Tool [#${targetThread}]`, `${saved.icon} ${saved.name}`);
+            toolResult = { success: true, message: `Persona berhasil disimpan untuk topic/chat ini: ${saved.icon} ${saved.name}` };
           } else {
             toolResult = { error: `Tool tidak dikenal: ${toolName}` };
           }
