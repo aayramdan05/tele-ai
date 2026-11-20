@@ -338,7 +338,7 @@ class AgentEngine {
     logger.logResponse(result);
 
     // Look for generated files to send to Telegram (e.g. mp4 videos in data/output)
-    const sentFiles = await this.checkForOutputFiles(task.chatId, result, task.threadId);
+    const sentFiles = await this.checkForOutputFiles(task.chatId, result, task.threadId, { prompt: task.prompt });
 
     db.addTaskHistory({
       prompt: task.prompt,
@@ -719,7 +719,7 @@ class AgentEngine {
     logger.logResponse(finalResponseText, { totalTokens });
 
     // Look for generated files to send to Telegram
-    const additionalFiles = await this.checkForOutputFiles(task.chatId, finalResponseText, task.threadId);
+    const additionalFiles = await this.checkForOutputFiles(task.chatId, finalResponseText, task.threadId, { prompt: task.prompt });
     const allFilesSent = [...filesSent, ...additionalFiles];
 
     db.addTaskHistory({
@@ -739,16 +739,22 @@ class AgentEngine {
   }
 
   /**
-   * Scan response text or output folder for created video/media/image files and auto-send to Telegram
+   * Scan response text for explicitly mentioned video/media/image files and send to Telegram
    */
-  async checkForOutputFiles(chatId, responseText = '', threadId = null) {
+  async checkForOutputFiles(chatId, responseText = '', threadId = null, taskContext = {}) {
     const sent = [];
     if (!chatId) return sent;
 
-    // 1. Check regex for file paths mentioned in response (mp4, webm, mov, png, jpg, jpeg, webp)
+    const userPrompt = (taskContext.prompt || '').toLowerCase();
+    const isExplicitFileInquiry = /(?:mana|belum ada|kirim ulang|mana link|mana hasil)\s+(?:video|reels|file|klip|gambar|hasilnya|videonya)/i.test(userPrompt) ||
+      /^(?:mana|kirim)\s+(?:videonya|filenya|hasilnya|videony)\??$/i.test(userPrompt.trim());
+
+    // 1. Check regex for explicit file paths mentioned in response text (mp4, webm, mov, png, jpg, jpeg, webp)
     const match = responseText ? responseText.match(/(?:[a-zA-Z0-9_\-\/\\.]+\.(?:mp4|webm|mov|png|jpg|jpeg|webp))/gi) : null;
     if (match) {
       for (const rawPath of match) {
+        if (rawPath.startsWith('.') || rawPath.length < 5) continue;
+
         let fullPath = path.resolve(rawPath);
         if (!fs.existsSync(fullPath)) {
           fullPath = path.join(__dirname, '..', rawPath);
@@ -756,31 +762,36 @@ class AgentEngine {
         if (!fs.existsSync(fullPath)) {
           fullPath = path.join(__dirname, '..', 'data', 'output', path.basename(rawPath));
         }
+
         if (fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) {
+          const fileKey = `${chatId}_${threadId || 0}_${fullPath}`;
+          // Don't re-send the exact same file in subsequent conversation turns unless user explicitly asks
+          if (this.sentFilesCache && this.sentFilesCache.has(fileKey) && !isExplicitFileInquiry) {
+            continue;
+          }
+
           try {
             const ext = path.extname(fullPath).toLowerCase();
             const isVideo = ['.mp4', '.webm', '.mov'].includes(ext);
             const caption = isVideo ? '🎬 Video hasil Reels Anda sudah siap!' : '🖼️ File hasil di server VPS:';
 
-            // Send file with timeout safety (180s max) so it can never hang indefinitely
             const uploadPromise = telegramTool.sendFile(chatId, fullPath, caption, threadId);
             const timeoutPromise = new Promise((_, rej) => setTimeout(() => rej(new Error('Upload file timeout (180 detik)')), 180000));
             const uploadRes = await Promise.race([uploadPromise, timeoutPromise]);
             if (uploadRes && (uploadRes.ok || uploadRes.result || uploadRes.success)) {
               sent.push(fullPath);
+              if (!this.sentFilesCache) this.sentFilesCache = new Set();
+              this.sentFilesCache.add(fileKey);
             }
           } catch (e) {
             console.error('[AGENT] Gagal auto-send file ke Telegram:', e.message);
-            try {
-              await telegramTool.sendMessage(chatId, `⚠️ *Catatan Pengiriman File:*\nFile \`${path.basename(fullPath)}\` berhasil selesai dibuat di server (\`${fullPath}\`), namun gagal terunggah ke Telegram: _${e.message}_`, threadId);
-            } catch (notifyErr) {}
           }
         }
       }
     }
 
-    // 2. If nothing sent yet, inspect data/output for recent files created/modified in the last 15 minutes
-    if (sent.length === 0) {
+    // 2. ONLY if user specifically asked for a missing/previous file (e.g. "mana videonya"), look up the latest output file
+    if (sent.length === 0 && isExplicitFileInquiry) {
       try {
         const outputDir = path.join(__dirname, '..', 'data', 'output');
         if (fs.existsSync(outputDir)) {
@@ -796,22 +807,22 @@ class AgentEngine {
             .filter(f => f && f.stat.isFile() && ['.mp4', '.mov', '.webm', '.png', '.jpg', '.jpeg', '.webp'].includes(path.extname(f.name).toLowerCase()))
             .sort((a, b) => b.stat.mtimeMs - a.stat.mtimeMs);
 
-          const fifteenMinutesAgo = Date.now() - (15 * 60 * 1000);
-          const recentFiles = files.filter(f => f.stat.mtimeMs > fifteenMinutesAgo);
-
-          if (recentFiles.length > 0) {
-            const newest = recentFiles[0];
+          if (files.length > 0) {
+            const newest = files[0];
             const ext = path.extname(newest.path).toLowerCase();
             const isVideo = ['.mp4', '.webm', '.mov'].includes(ext);
-            const caption = isVideo ? '🎬 Video hasil proses Anda di VPS:' : '🖼️ File hasil di VPS:';
+            const caption = isVideo ? '🎬 Ini video hasil Reels terakhir Anda di VPS:' : '🖼️ Ini file hasil terakhir Anda di VPS:';
             const uploadRes = await telegramTool.sendFile(chatId, newest.path, caption, threadId);
             if (uploadRes && (uploadRes.ok || uploadRes.result || uploadRes.success)) {
               sent.push(newest.path);
+              const fileKey = `${chatId}_${threadId || 0}_${newest.path}`;
+              if (!this.sentFilesCache) this.sentFilesCache = new Set();
+              this.sentFilesCache.add(fileKey);
             }
           }
         }
       } catch (err) {
-        console.error('[AGENT] Error scanning data/output directory:', err.message);
+        console.error('[AGENT] Error lookup file on inquiry:', err.message);
       }
     }
 
