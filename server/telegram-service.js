@@ -86,7 +86,10 @@ class TelegramService {
         if (data.ok && Array.isArray(data.result)) {
           for (const update of data.result) {
             this.lastUpdateId = Math.max(this.lastUpdateId, update.update_id);
-            await this.handleUpdate(update);
+            // Process update asynchronously so long-running tasks don't block polling loop
+            this.handleUpdate(update).catch(err => {
+              console.error('[TELEGRAM] Error handling update:', err.message);
+            });
           }
         }
       } catch (err) {

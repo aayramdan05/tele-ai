@@ -137,7 +137,8 @@ class AgentEngine {
     const args = [
       '-p', fullPrompt,
       '--model', modelName,
-      '--dangerously-skip-permissions'
+      '--dangerously-skip-permissions',
+      '--disable-slash-commands'
     ];
 
     const { spawn } = require('child_process');

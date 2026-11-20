@@ -3,7 +3,7 @@
     "telegram_bot_token": "",
     "allowed_chat_ids": [],
     "active_engine": "agy",
-    "active_model": "gemini-3.8-flash-high",
+    "active_model": "gemini-3.8-flash-low",
     "gemini_api_key": "",
     "google_client_id": "",
     "google_client_secret": "",
@@ -17,9 +17,9 @@
     "admin_password": "admin"
   },
   "metrics": {
-    "total_requests": 7,
+    "total_requests": 8,
     "successful_requests": 5,
-    "failed_requests": 2,
+    "failed_requests": 3,
     "breaker_trips": 0,
     "total_tokens_estimated": 1710,
     "today_tokens": 468,
@@ -40,7 +40,7 @@
       0,
       0,
       0,
-      7,
+      8,
       0,
       0,
       0,
@@ -395,6 +395,14 @@
       "type": "tool_call",
       "title": "Eksekusi Tool: agy_cli",
       "details": "{\n  \"command\": \"agy -p ... --model gemini-3.8-flash-high\"\n}",
+      "meta": {}
+    },
+    {
+      "id": "log-1795157212999-9k5xw",
+      "timestamp": "2026-11-20T06:46:52.999Z",
+      "type": "error",
+      "title": "Gagal Memproses Task (oke mantap sudah ada, apakah bisa dibiki)",
+      "details": "Error: agy CLI keluar dengan exit code null: Unknown error\n    at ChildProcess.<anonymous> (D:\\Unpad\\Infra Apps\\tele-ai\\server\\agent-engine.js:173:25)\n    at ChildProcess.emit (node:events:519:28)\n    at maybeClose (node:internal/child_process:1105:16)\n    at ChildProcess._handle.onexit (node:internal/child_process:305:5)",
       "meta": {}
     }
   ],
