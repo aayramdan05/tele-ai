@@ -690,10 +690,19 @@ class AgentEngine {
             const ext = path.extname(fullPath).toLowerCase();
             const isVideo = ['.mp4', '.webm', '.mov'].includes(ext);
             const caption = isVideo ? '🎬 Video hasil Reels Anda sudah siap!' : '🖼️ File gambar hasil permintaan Anda:';
-            await telegramTool.sendFile(chatId, fullPath, caption, threadId);
-            sent.push(fullPath);
+
+            // Send file with timeout safety (180s max) so it can never hang indefinitely
+            const uploadPromise = telegramTool.sendFile(chatId, fullPath, caption, threadId);
+            const timeoutPromise = new Promise((_, rej) => setTimeout(() => rej(new Error('Upload file timeout (180 detik)')), 180000));
+            const uploadRes = await Promise.race([uploadPromise, timeoutPromise]);
+            if (uploadRes && uploadRes.success) {
+              sent.push(fullPath);
+            }
           } catch (e) {
-            console.error('[AGENT] Gagal auto-send file:', e.message);
+            console.error('[AGENT] Gagal auto-send file ke Telegram:', e.message);
+            try {
+              await telegramTool.sendMessage(chatId, `⚠️ *Catatan Pengiriman File:*\nFile \`${path.basename(fullPath)}\` berhasil selesai dibuat di server (\`${fullPath}\`), namun gagal terunggah ke Telegram: _${e.message}_`, threadId);
+            } catch (notifyErr) {}
           }
         }
       }

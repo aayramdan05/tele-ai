@@ -502,6 +502,12 @@ class TelegramService {
       throw new Error(`File tidak ditemukan: ${filePath}`);
     }
 
+    const stats = fs.statSync(fullPath);
+    const fileSizeMB = stats.size / (1024 * 1024);
+    if (fileSizeMB > 49.5) {
+      throw new Error(`Ukuran file (${fileSizeMB.toFixed(1)} MB) melebihi batas upload Telegram Bot API (maksimal 50 MB). File tetap tersimpan di server.`);
+    }
+
     const ext = path.extname(fullPath).toLowerCase();
     const isVideo = ['.mp4', '.mov', '.mkv', '.webm'].includes(ext);
     const isPhoto = ['.png', '.jpg', '.jpeg', '.webp'].includes(ext);
@@ -521,26 +527,87 @@ class TelegramService {
       await this.sendChatAction(chatId, 'upload_document', threadId);
     }
 
+    // On Linux / Debian VPS, prefer native curl for 100% reliable multipart upload without undici memory bloat or streaming stalls
+    if (process.platform === 'linux') {
+      try {
+        return await this.sendFileViaCurl(method, field, chatId, fullPath, caption, threadId);
+      } catch (curlErr) {
+        console.warn('[TELEGRAM] Upload via curl gagal, fallback ke fetch:', curlErr.message);
+      }
+    }
+
+    return await this.sendFileViaFetch(method, field, chatId, fullPath, caption, threadId);
+  }
+
+  async sendFileViaCurl(method, field, chatId, fullPath, caption, threadId) {
+    const { execFile } = require('child_process');
+    const token = db.getSettings().telegram_bot_token;
+    const url = `https://api.telegram.org/bot${token}/${method}`;
+
+    const args = [
+      '-s',
+      '--max-time', '180', // 3 minutes timeout
+      '-X', 'POST', url,
+      '-F', `chat_id=${chatId}`
+    ];
+    if (threadId) {
+      args.push('-F', `message_thread_id=${threadId}`);
+    }
+    if (caption) {
+      args.push('-F', `caption=${caption.substring(0, 1024)}`);
+    }
+    args.push('-F', `${field}=@${fullPath}`);
+
+    return new Promise((resolve, reject) => {
+      execFile('curl', args, { maxBuffer: 10 * 1024 * 1024 }, (err, stdout, stderr) => {
+        if (err) {
+          return reject(new Error(`curl upload error: ${err.message}`));
+        }
+        try {
+          const res = JSON.parse(stdout);
+          if (!res.ok) {
+            return reject(new Error(`Telegram API rejected: ${res.description || 'Unknown error'}`));
+          }
+          resolve(res);
+        } catch (e) {
+          reject(new Error(`Gagal parse respon Telegram upload: ${stdout.substring(0, 200)}`));
+        }
+      });
+    });
+  }
+
+  async sendFileViaFetch(method, field, chatId, fullPath, caption, threadId) {
     const url = this.getApiUrl(method);
     const fileBuffer = fs.readFileSync(fullPath);
     const fileName = path.basename(fullPath);
 
     const formData = new FormData();
     formData.append('chat_id', chatId);
-    if (threadId) formData.append('message_thread_id', threadId);
-    if (caption) formData.append('caption', caption);
-    formData.append(field, new Blob([fileBuffer]), fileName);
+    if (threadId) formData.append('message_thread_id', String(threadId));
+    if (caption) formData.append('caption', caption.substring(0, 1024));
 
-    const res = await fetch(url, {
-      method: 'POST',
-      body: formData
-    });
+    const ext = path.extname(fullPath).toLowerCase();
+    const mimeType = ext === '.mp4' ? 'video/mp4' : ext === '.png' ? 'image/png' : ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : 'application/octet-stream';
+    formData.append(field, new Blob([fileBuffer], { type: mimeType }), fileName);
 
-    const data = await res.json();
-    if (!data.ok) {
-      throw new Error(`Telegram upload failed: ${data.description || 'Unknown error'}`);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 180000); // 3 minutes max
+
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        body: formData,
+        signal: controller.signal
+      });
+
+      const data = await res.json();
+      if (!data.ok) {
+        throw new Error(`Telegram upload failed: ${data.description || 'Unknown error'}`);
+      }
+      return data;
+    } finally {
+      clearTimeout(timeout);
     }
-    return data;
   }
 
   async downloadTelegramFile(fileId, savePath) {
