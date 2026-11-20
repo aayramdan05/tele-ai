@@ -18,6 +18,23 @@ IDENTITAS & KARAKTER UTAMA (GEMINI TELEGRAM EDITION):
 2. Anda bisa menganalisis kode, log server, performa CPU/RAM/Disk, network, harga crypto, hingga konten media/video.
 3. Anda bisa membuat, menguji, dan menjalankan script (Python, Node.js, Bash, SQL, FFmpeg) secara mandiri di server.
 
+PRINSIP PROAKTIF & SIKAP "BISA" (PROACTIVE "BISA" MINDSET - SANGAT PENTING):
+1. JANGAN PERNAH bersikap pasif, ragu-ragu, menolak, atau menjawab "tidak bisa" saat pengguna menanyakan tentang integrasi, otomasi, atau fitur baru (seperti: "apakah bisa memasukkan token facebook untuk upload otomatis?", "bisa auto-upload ke TikTok/Instagram/YouTube?", "bisa konek ke Google Sheets/API?", "bisa pasang webhook atau cronjob?").
+2. SELALU jawab dengan percaya diri, tegas, dan antusias: "Tentu sangat bisa!"
+3. Jelaskan dalam 1-2 kalimat bagaimana alur kerjanya di VPS Debian (misal: "Server VPS kita sudah dilengkapi script backend 'scripts/facebook-uploader.py' yang memanfaatkan Facebook Graph API untuk mengunggah video Reels secara langsung ke Halaman/Fanspage Facebook").
+4. SECARA PROAKTIF MINTA TOKEN / DATA YANG DIBUTUHKAN:
+   - Mintalah data/kredensial yang diperlukan secara jelas dan terstruktur bernomor agar pengguna mudah mengirimkannya via Telegram.
+   - Contoh saat pengguna menanyakan Facebook Auto-Upload:
+     "Tentu sangat bisa! Server VPS kita sudah memiliki script backend untuk auto-upload video ke Facebook Page. Untuk mengaktifkannya, silakan kirimkan:
+     1. **Facebook Page Access Token** (dari Meta for Developers / Graph API Explorer)
+     2. **Facebook Page ID** (ID Halaman Fanspage Facebook Anda)
+     
+     Silakan kirimkan token dan Page ID-nya langsung di sini, saya akan segera menyimpannya di konfigurasi server VPS dan menguji koneksinya!"
+5. Begitu pengguna mengirimkan token atau kredensial tersebut:
+   - Gunakan tool 'save_server_setting' untuk menyimpannya ke database server VPS secara permanen.
+   - Lakukan pengetesan koneksi via 'scripts/facebook-uploader.py --test'.
+   - Konfirmasikan bahwa token telah aktif dan tawarkan langkah berikutnya secara proaktif (misal: "Apakah ingin saya jadwalkan upload otomatis setiap hari/jam tertentu, atau ada format caption default yang ingin dipasang?").
+
 PROTOKOL KLARIFIKASI INTERAKTIF & FEEDBACK PERTANYAAN (HERMES INTERVIEW LOOP):
 Jika permintaan pengguna terasa kurang informasi, ambigu, atau memerlukan spesifikasi penting sebelum dieksekusi (contoh: "bikin script download", "buatkan script analisa", "bikin video reels", "setup cronjob" tanpa menyebutkan sumber, format, atau jadwal):
 - JANGAN berasumsi liar atau memberikan kode acak tanpa kepastian.
@@ -32,8 +49,10 @@ KEMAMPUAN SERVER & SKRIPTING MANDIRI:
 2. Script Analisis & Pengolahan Data:
    - Mampu membuat script Python/Node.js untuk menganalisis data, parsing teks/CSV/JSON, visualisasi grafik chart, scraping informasi publik, atau pengecekan sistem.
 3. Pemrosesan Media & Reels Otomatis:
-   - Mengunduh video, potong highlight viral, subtitle audio otomatis, dan render rasio 16:9 / 9:16 menggunakan FFmpeg.
+   - Mengunduh video, potong highlight viral, subtitle audio otomatis, dan render rasio 16:9 / 9:16 menggunakan FFmpeg ('scripts/clipper-helper.py').
    - Hasil render di 'data/output/' otomatis dikirim langsung ke Telegram pengguna.
+4. Auto-Upload ke Facebook Reels / Media Sosial:
+   - Mengunggah video MP4 hasil render ke Facebook Page via 'scripts/facebook-uploader.py' menggunakan Page Access Token.
 
 FITUR INSTALASI SKILL OTONOM (HERMES SKILLS SYSTEM):
 Jika pengguna meminta menginstall skill atau Anda membutuhkan keahlian baru:
@@ -468,6 +487,32 @@ class AgentEngine {
               },
               required: ['name', 'instruction']
             }
+          },
+          {
+            name: 'save_server_setting',
+            description: 'Menyimpan kredensial atau pengaturan integrasi server (seperti facebook_page_access_token, facebook_page_id, api_keys) secara aman dan permanen di database server VPS',
+            parameters: {
+              type: 'OBJECT',
+              properties: {
+                key: { type: 'STRING', description: 'Nama key pengaturan/token (contoh: facebook_page_access_token, facebook_page_id, youtube_api_key)' },
+                value: { type: 'STRING', description: 'Nilai token atau konfigurasi yang akan disimpan' },
+                description: { type: 'STRING', description: 'Deskripsi singkat token/pengaturan' }
+              },
+              required: ['key', 'value']
+            }
+          },
+          {
+            name: 'facebook_upload_video',
+            description: 'Mengunggah video reels/MP4 ke Facebook Page menggunakan Facebook Graph API dan token yang tersimpan di server',
+            parameters: {
+              type: 'OBJECT',
+              properties: {
+                video_path: { type: 'STRING', description: 'Path file video yang akan diupload (misal: data/output/reels_video.mp4)' },
+                title: { type: 'STRING', description: 'Judul video Reels' },
+                description: { type: 'STRING', description: 'Caption dan hashtag video' }
+              },
+              required: ['video_path']
+            }
           }
         ]
       }
@@ -629,6 +674,18 @@ class AgentEngine {
               sharedMemory.updateWorkspace({ [args.workspace_key]: args.workspace_value }, activeAccount ? activeAccount.email : 'Gemini');
             }
             toolResult = { success: true, message: 'Shared memory berhasil diperbarui dan disinkronkan ke seluruh akun.' };
+          } else if (toolName === 'save_server_setting') {
+            db.updateSettings({ [args.key]: args.value });
+            sharedMemory.addFact(`Kredensial '${args.key}' telah dikonfigurasi dan tersimpan di server.`);
+            logger.logInfo(`Pengaturan Server Disimpan via Tool`, `${args.key} = ***`);
+            toolResult = { success: true, message: `Kredensial/Pengaturan '${args.key}' berhasil disimpan secara aman di database server VPS.` };
+          } else if (toolName === 'facebook_upload_video') {
+            const scriptPath = path.join(__dirname, '..', 'scripts', 'facebook-uploader.py');
+            const cleanPath = (args.video_path || '').replace(/"/g, '');
+            const cleanTitle = (args.title || '').replace(/"/g, '');
+            const cleanDesc = (args.description || '').replace(/"/g, '');
+            const cmd = `python "${scriptPath}" --video "${cleanPath}" --title "${cleanTitle}" --description "${cleanDesc}"`;
+            toolResult = await terminalTool.execute(cmd);
           } else if (toolName === 'set_custom_persona') {
             const targetThread = task.threadId || task.chatId;
             const saved = db.setTopicPersona(targetThread, args);

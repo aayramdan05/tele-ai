@@ -463,7 +463,16 @@ class TelegramService {
       return `🔎 *Mencari & Mengambil File Hasil di Server VPS...*\n⏳ _Sedang memeriksa file output terbaru dan menyiapkan pengiriman ke Telegram..._\n⏱️ _Estimasi: ~10-25 detik. Pesan ini otomatis dihapus saat file terkirim._`;
     }
 
-    // 4. Memory & Settings (e.g. "simpen settingan memori", "shared memory", "simpan persona")
+    // 4. Integrations & Credentials (e.g. "bisa masukan token facebook", "upload otomatis ke facebook", "token fb", "access token")
+    const isIntegrationOrToken = /(?:token|facebook|fb\b|page id|access token|api key|upload otomatis|integrasi)/i.test(prompt);
+    if (isIntegrationOrToken && (lower.includes('token') || lower.includes('facebook') || lower.includes('fb') || lower.includes('integrasi') || lower.includes('upload otomatis'))) {
+      if (lower.includes('eaab') || lower.includes('page id') || prompt.length > 70) {
+        return `🔐 *Menyimpan Token & Konfigurasi Integrasi...*\n⏳ _Sedang memvalidasi dan menyimpan kredensial ke database server VPS..._\n⏱️ _Estimasi: ~10-25 detik. Pesan ini otomatis dihapus saat selesai._`;
+      }
+      return `⚡ *Menganalisis Integrasi & Otomasi...*\n🤖 _Gemini sedang menyiapkan konfigurasi dan instruksi integrasi server..._\n⏱️ _Estimasi: ~10-25 detik. Pesan ini otomatis dihapus saat selesai._`;
+    }
+
+    // 5. Memory & Settings (e.g. "simpen settingan memori", "shared memory", "simpan persona")
     const isMemoryOrSettings = /(?:memori|memory|simpan settingan|simpen settingan|save memory|shared memory|persona|catat|ingat)/i.test(prompt);
     if (isMemoryOrSettings) {
       return `🧠 *Memperbarui Memori & Pengaturan Server...*\n⏳ _Sedang menyimpan catatan preferensi ke database VPS..._\n⏱️ _Estimasi: ~10-25 detik. Pesan ini otomatis dihapus saat selesai._`;

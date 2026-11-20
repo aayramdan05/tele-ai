@@ -65,6 +65,8 @@ const DEFAULT_DATA = {
     google_client_secret: '',
     google_tokens: null, // Legacy single account
     google_accounts: [], // Multi-account pool: [ { id, email, access_token, refresh_token, expiry_date, status, tokens_today } ]
+    facebook_page_access_token: '',
+    facebook_page_id: '',
     concurrency_limit: 1,
     pacing_ms: 2000,
     max_turns_per_prompt: 15,
