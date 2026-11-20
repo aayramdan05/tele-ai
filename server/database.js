@@ -1,3 +1,4 @@
+require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 
@@ -126,7 +127,13 @@ class Database {
           task_history: Array.isArray(parsed.task_history) ? parsed.task_history.slice(-100) : [],
           topic_personas: (parsed.topic_personas && typeof parsed.topic_personas === 'object') ? parsed.topic_personas : {}
         };
+        if (!this.data.settings.telegram_bot_token && process.env.TELEGRAM_BOT_TOKEN) {
+          this.data.settings.telegram_bot_token = process.env.TELEGRAM_BOT_TOKEN;
+        }
       } else {
+        if (process.env.TELEGRAM_BOT_TOKEN) {
+          this.data.settings.telegram_bot_token = process.env.TELEGRAM_BOT_TOKEN;
+        }
         this.saveSync();
       }
     } catch (err) {
@@ -158,7 +165,10 @@ class Database {
   }
 
   getSettings() {
-    return { ...this.data.settings };
+    return {
+      ...this.data.settings,
+      telegram_bot_token: this.data.settings.telegram_bot_token || process.env.TELEGRAM_BOT_TOKEN || ''
+    };
   }
 
   updateSettings(updates) {
