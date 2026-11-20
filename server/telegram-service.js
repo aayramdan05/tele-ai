@@ -375,16 +375,17 @@ class TelegramService {
       userPrompt = `Tolong buatkan video Reels rasio 16:9 dengan judul atas dan bawah bertema '${topic}'. Render videonya dan kirimkan hasilnya ke saya.`;
     }
 
-    // Send initial processing ack with background info and estimation
+    // Send dynamic adaptive processing acknowledgment tailored to the prompt
     let progressMsg = null;
-    if (hasPhoto) {
-      progressMsg = await this.sendMessage(chatId, `🖼️ *Menganalisis Gambar di Background...*\n⏳ _AI Agent sedang memproses & memeriksa gambar Anda (estimasi: ~30-60 detik)..._`, threadId);
-    } else if (hasDocument) {
-      progressMsg = await this.sendMessage(chatId, `📄 *Membaca Dokumen di Background...*\n⏳ _AI Agent sedang membaca file dokumen Anda di VPS..._`, threadId);
-    } else if (isMedia) {
-      progressMsg = await this.sendMessage(chatId, `🎬 *Tugas Berjalan di Background (Media/Reels)...*\n⏳ _Sedang mencari, memotong highlight, dan merender video di VPS._\n⏱️ _Estimasi: ~2 - 10 menit. Proses berjalan di background, pesan ini akan terhapus otomatis setelah selesai._`, threadId);
-    } else {
-      progressMsg = await this.sendMessage(chatId, `⏳ *Tugas Berjalan di Background...*\n🤖 _AI Agent di VPS sedang mengeksekusi permintaan Anda (estimasi: ~1 - 5 menit). Pesan ini otomatis dihapus setelah selesai._`, threadId);
+    try {
+      const adaptiveText = this.buildAdaptiveProgressMessage(userPrompt, {
+        hasPhoto,
+        hasDocument,
+        docName: msg.document ? msg.document.file_name : null
+      });
+      progressMsg = await this.sendMessage(chatId, adaptiveText, threadId);
+    } catch (msgErr) {
+      console.error('[TELEGRAM] Gagal kirim progress message:', msgErr.message);
     }
 
     const progressMsgId = (progressMsg && progressMsg.result && progressMsg.result.message_id) ? progressMsg.result.message_id : null;
@@ -426,6 +427,81 @@ class TelegramService {
 
       await this.sendMessage(chatId, `❌ *Terjadi Kesalahan saat memproses permintaan:*\n\`${err.message}\``, threadId);
     }
+  }
+
+  /**
+   * Generate an adaptive, context-aware progress acknowledgment based on the prompt
+   */
+  buildAdaptiveProgressMessage(prompt, options = {}) {
+    const { hasPhoto, hasDocument, docName } = options;
+    const cleanPrompt = prompt.replace(/^\/[a-zA-Z0-9_-]+\s*/, '').trim();
+
+    // 1. Photo with caption or vision analysis
+    if (hasPhoto) {
+      if (cleanPrompt && cleanPrompt.length > 3) {
+        const snippet = cleanPrompt.length > 50 ? cleanPrompt.substring(0, 47) + '...' : cleanPrompt;
+        return `🖼️ *Menganalisis Gambar & Instruksi: "${snippet}"*\n⏳ _Gemini Vision sedang memeriksa gambar dan memproses permintaan Anda..._\n⏱️ _Estimasi: ~30-60 detik. Pesan ini otomatis dihapus saat selesai._`;
+      }
+      return `🖼️ *Menganalisis Gambar...*\n⏳ _Gemini Vision sedang memeriksa dan menganalisis gambar Anda..._\n⏱️ _Estimasi: ~30-60 detik. Pesan ini otomatis dihapus saat selesai._`;
+    }
+
+    // 2. Document upload
+    if (hasDocument) {
+      return `📄 *Membaca File: \`${docName || 'Dokumen'}\`*\n⏳ _AI Agent sedang membaca dan menganalisis isi file dokumen di server VPS..._\n⏱️ _Estimasi: ~30-60 detik. Pesan ini otomatis dihapus saat selesai._`;
+    }
+
+    const lower = prompt.toLowerCase();
+
+    // 3. Reels / Video Creation with specific topic
+    if (lower.includes('reels') || lower.includes('video') || lower.includes('clip') || lower.includes('potong') || lower.includes('/reels')) {
+      let topic = '';
+      const topicMatch = prompt.match(/(?:bertema|tentang|judul|mengenai|tema|video)\s+['"]?([^'"\n.,]+)['"]?/i);
+      if (topicMatch && topicMatch[1] && topicMatch[1].length > 2) {
+        topic = topicMatch[1].trim();
+      } else {
+        const words = cleanPrompt.replace(/buatkan|bikin|tolong|coba|render|reels|video/gi, '').trim();
+        if (words.length > 3) topic = words.substring(0, 35);
+      }
+      const topicLabel = topic ? `: "${topic}"` : '';
+      return `🎬 *Merender Video Reels${topicLabel}*\n⏳ _Sedang mencari materi, memotong klip, dan merender video FFmpeg di VPS..._\n⏱️ _Estimasi: ~1 - 3 menit. Pesan ini otomatis dihapus saat video siap._`;
+    }
+
+    // 4. Script generation or downloader
+    if (lower.includes('script') || lower.includes('skrip') || lower.includes('bikin program') || lower.includes('buat kode') || lower.includes('download')) {
+      let taskSubject = '';
+      const subjMatch = prompt.match(/(?:script|skrip|bikin|buat|download)\s+([^.,\n]+)/i);
+      if (subjMatch && subjMatch[1]) {
+        taskSubject = subjMatch[1].trim().substring(0, 35);
+      }
+      const label = taskSubject ? `: "${taskSubject}"` : '';
+      return `⚙️ *Menyusun & Menguji Script${label}*\n⏳ _Sedang menulis kode, memeriksa dependensi, dan mengeksekusinya di server..._\n⏱️ _Estimasi: ~30-90 detik. Pesan ini otomatis dihapus saat selesai._`;
+    }
+
+    // 5. Analysis / System Admin / Server Check
+    if (lower.includes('analisa') || lower.includes('analisis') || lower.includes('cek server') || lower.includes('cek vps') || lower.includes('monitor') || lower.includes('ram') || lower.includes('cpu')) {
+      let focus = '';
+      if (lower.includes('ram')) focus = 'RAM ';
+      if (lower.includes('cpu')) focus += 'CPU ';
+      if (lower.includes('disk')) focus += 'Disk ';
+      const focusLabel = focus ? ` (${focus.trim()})` : '';
+      return `🔍 *Menganalisis Sistem Server${focusLabel}...*\n⏳ _Sedang mengumpulkan metrik, membaca log, dan menyusun laporan analitik..._\n⏱️ _Estimasi: ~20-45 detik. Pesan ini otomatis dihapus saat selesai._`;
+    }
+
+    // 6. Skill installation
+    if (lower.includes('skill') || lower.includes('install') || lower.includes('pasang')) {
+      const skillName = cleanPrompt.replace(/install|pasang|skill|tolong|buatkan/gi, '').trim().substring(0, 25);
+      const sLabel = skillName ? `: "${skillName}"` : '';
+      return `🛠️ *Menyiapkan & Menginstall Skill${sLabel}*\n⏳ _Sedang menyusun instruksi SKILL.md dan mendaftarkannya ke server..._\n⏱️ _Estimasi: ~20-40 detik. Pesan ini otomatis dihapus saat selesai._`;
+    }
+
+    // 7. Clarification response or short answers (e.g. "1", "ya", "youtube", "lanjutkan")
+    if (cleanPrompt.length <= 15) {
+      return `⚡ *Memproses Pilihan: "${cleanPrompt}"*\n🤖 _Gemini sedang melanjutkan instruksi berdasarkan pilihan Anda..._\n⏱️ _Estimasi: ~15-30 detik. Pesan ini otomatis dihapus saat selesai._`;
+    }
+
+    // 8. General conversational / customized prompt
+    const snippet = cleanPrompt.length > 45 ? cleanPrompt.substring(0, 42) + '...' : cleanPrompt;
+    return `🤖 *Mengeksekusi: "${snippet}"*\n⏳ _AI Agent di VPS sedang memproses permintaan Anda..._\n⏱️ _Estimasi: ~20-60 detik. Pesan ini otomatis dihapus saat selesai._`;
   }
 
   async sendMessage(chatId, text, threadId = null) {
