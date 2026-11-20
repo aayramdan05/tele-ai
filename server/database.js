@@ -3,6 +3,55 @@ const path = require('path');
 
 const DB_FILE = path.join(__dirname, '..', 'data', 'db.json');
 
+// Built-in Persona & Skill Templates (Hermes & 9router Style)
+const PERSONA_TEMPLATES = {
+  general: {
+    key: 'general',
+    name: 'Executive Assistant (Hermes)',
+    icon: '🤖',
+    description: 'Asisten pribadi serba bisa: ramah, ringkas, responsif mengeksekusi tugas server & chatting',
+    model: 'gemini-3.8-flash-low',
+    skills: ['terminal', 'file_tools', 'memory'],
+    instruction: `Anda adalah Executive Assistant pribadi (Hermes Agent) yang berjalan di VPS. Anda ramah, responsif, ringkas, dan sigap mengeksekusi apa pun yang diminta pengguna baik perintah terminal, cek server, atau tanya-jawab.`
+  },
+  clipper: {
+    key: 'clipper',
+    name: 'Reels & Media Creator',
+    icon: '🎬',
+    description: 'Spesialis video pendek (FB Reels/Shorts/TikTok): mencari highlight video, memotong klip, padding 16:9/9:16, judul catchy, dan kirim video otomatis',
+    model: 'gemini-3.8-flash-low',
+    skills: ['video_clipper', 'ffmpeg', 'yt-dlp', 'telegram_send_file'],
+    instruction: `Anda adalah pakar video viral & Reels Creator Specialist (Hermes Media Agent). Keahlian utama Anda adalah memotong video podcast/konten viral, menambahkan bar judul atas-bawah rasio 16:9 atau 9:16, dan merender video berkualitas tinggi menggunakan scripts/clipper-helper.py. Anda selalu memastikan video hasil render tersimpan di data/output dan dikirimkan langsung ke Telegram.`
+  },
+  devops: {
+    key: 'devops',
+    name: 'DevOps & Linux Sysadmin',
+    icon: '💻',
+    description: 'Administrator VPS Debian/Linux: pemantauan CPU/RAM/Disk, PM2, Cron, Nginx/systemd, Docker, jaringan, dan keamanan server',
+    model: 'gemini-3.8-flash-low',
+    skills: ['terminal_execute', 'file_tools', 'sysinfo', 'pm2'],
+    instruction: `Anda adalah Senior Linux Sysadmin & DevOps Engineer spesialis server Debian (Hermes DevOps Agent). Anda ahli mengecek kesehatan sistem (CPU, RAM, Disk, Load), mengelola process PM2, mengecek log, menyusun script bash automasi, firewall, dan memastikan server VPS berjalan optimal 24/7.`
+  },
+  coder: {
+    key: 'coder',
+    name: 'Fullstack Software Engineer',
+    icon: '🐍',
+    description: 'Arsitek kode & developer: Node.js, Python, PostgreSQL, REST API, automasi script, debugging error & refactoring',
+    model: 'gemini-3.8-flash-medium',
+    skills: ['file_tools', 'terminal_execute', 'code_review'],
+    instruction: `Anda adalah Senior Fullstack Software Engineer & Code Architect. Anda ahli merancang dan menulis kode Node.js, Python, PostgreSQL, dan arsitektur backend. Berikan kode yang modular, efisien, bersih dari bug, dan siap produksi.`
+  },
+  router: {
+    key: 'router',
+    name: 'Quota & Routing Monitor (9router)',
+    icon: '📊',
+    description: 'Spesialis pemantauan kuota AI, token budgeting, routing model (Gemini/Claude), circuit breaker, dan analitik',
+    model: 'gemini-3.8-flash-low',
+    skills: ['quota_tracker', 'circuit_breaker', 'multi_account'],
+    instruction: `Anda adalah AI Traffic Controller & Quota Guardian (9router Agent). Tugas utama Anda adalah mengawasi penggunaan token, RPM/TPM, biaya estimasi API, memastikan circuit breaker aman dari ban 403, dan membantu mengoptimalkan alur multi-akun Google.`
+  }
+};
+
 // Default initial state
 const DEFAULT_DATA = {
   settings: {
@@ -46,7 +95,8 @@ const DEFAULT_DATA = {
       status: 'idle'
     }
   ],
-  task_history: []
+  task_history: [],
+  topic_personas: {}
 };
 
 class Database {
@@ -73,7 +123,8 @@ class Database {
           metrics: { ...DEFAULT_DATA.metrics, ...(parsed.metrics || {}) },
           flow_logs: Array.isArray(parsed.flow_logs) ? parsed.flow_logs.slice(-300) : [],
           cron_jobs: Array.isArray(parsed.cron_jobs) ? parsed.cron_jobs : DEFAULT_DATA.cron_jobs,
-          task_history: Array.isArray(parsed.task_history) ? parsed.task_history.slice(-100) : []
+          task_history: Array.isArray(parsed.task_history) ? parsed.task_history.slice(-100) : [],
+          topic_personas: (parsed.topic_personas && typeof parsed.topic_personas === 'object') ? parsed.topic_personas : {}
         };
       } else {
         this.saveSync();
@@ -223,6 +274,48 @@ class Database {
 
   getTaskHistory() {
     return [...this.data.task_history];
+  }
+
+  // --- TOPIC PERSONAS & SKILLS (Hermes Swarm) ---
+  getPersonaTemplates() {
+    return PERSONA_TEMPLATES;
+  }
+
+  getTopicPersonas() {
+    return { ...(this.data.topic_personas || {}) };
+  }
+
+  getTopicPersona(threadId) {
+    if (!threadId) return null;
+    const all = this.data.topic_personas || {};
+    return all[String(threadId)] || null;
+  }
+
+  setTopicPersona(threadId, personaKey, customName = null) {
+    if (!threadId) return null;
+    const template = PERSONA_TEMPLATES[personaKey] || PERSONA_TEMPLATES['general'];
+    if (!this.data.topic_personas) this.data.topic_personas = {};
+
+    this.data.topic_personas[String(threadId)] = {
+      threadId: String(threadId),
+      key: template.key,
+      name: customName || template.name,
+      icon: template.icon,
+      description: template.description,
+      model: template.model,
+      skills: template.skills,
+      instruction: template.instruction,
+      updated_at: new Date().toISOString()
+    };
+    this.save();
+    return this.data.topic_personas[String(threadId)];
+  }
+
+  deleteTopicPersona(threadId) {
+    if (!threadId || !this.data.topic_personas) return false;
+    delete this.data.topic_personas[String(threadId)];
+    this.save();
+    return true;
   }
 }
 

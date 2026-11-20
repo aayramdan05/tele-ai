@@ -163,6 +163,26 @@ app.post('/api/shared-memory/workspace', (req, res) => {
   res.json({ success: true, memory: sharedMemory.getAll() });
 });
 
+// 5c. Topic Personas & Multi-Agent Swarm (Hermes & 9router)
+app.get('/api/personas/templates', (req, res) => {
+  res.json(db.getPersonaTemplates());
+});
+
+app.get('/api/topics', (req, res) => {
+  res.json(db.getTopicPersonas());
+});
+
+app.post('/api/topics/:threadId', (req, res) => {
+  const { personaKey, customName } = req.body;
+  const updated = db.setTopicPersona(req.params.threadId, personaKey, customName);
+  res.json({ success: true, topic: updated });
+});
+
+app.delete('/api/topics/:threadId', (req, res) => {
+  const deleted = db.deleteTopicPersona(req.params.threadId);
+  res.json({ success: deleted });
+});
+
 // 6. Circuit Breaker Controls
 app.post('/api/circuit-breaker/reset', (req, res) => {
   circuitBreaker.resetBreaker();

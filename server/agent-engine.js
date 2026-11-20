@@ -114,23 +114,49 @@ class AgentEngine {
     const settings = db.getSettings();
     const engine = settings.active_engine || 'agy';
 
-    if (engine === 'agy') {
-      return await this.executeAgyCLI(task, settings);
-    } else {
-      return await this.executeGeminiNative(task, settings);
+    // Retrieve active Topic Persona if this message is inside a topic
+    let persona = null;
+    if (task.threadId) {
+      persona = db.getTopicPersona(task.threadId);
+      if (persona) {
+        logger.logInfo(`Topic Persona Aktif [#${task.threadId}]: ${persona.icon} ${persona.name}`, `Model: ${persona.model || settings.active_model}`);
+      }
     }
+
+    // Merge settings with persona overrides (model & persona instruction)
+    const effectiveSettings = {
+      ...settings,
+      active_model: (persona && persona.model) ? persona.model : (settings.active_model || 'gemini-3.8-flash-low'),
+      active_persona: persona
+    };
+
+    let result;
+    if (engine === 'agy') {
+      result = await this.executeAgyCLI(task, effectiveSettings);
+    } else {
+      result = await this.executeGeminiNative(task, effectiveSettings);
+    }
+
+    // If inside a topic with a persona, badge the text nicely
+    if (persona && result.text && !result.text.includes(persona.name)) {
+      result.text = `${persona.icon} *[${persona.name}]*\n\n${result.text}`;
+    }
+
+    return result;
   }
 
   /**
    * Engine 1: Native Antigravity CLI (agy) Execution (The Munder-Difflin Way, 100% Anti-403)
    */
   async executeAgyCLI(task, settings) {
-    const modelName = settings.active_model || 'gemini-3.8-flash-high';
+    const modelName = settings.active_model || 'gemini-3.8-flash-low';
     logger.logInfo('Menjalankan Engine: Antigravity CLI (agy)', `Model: ${modelName}`);
 
     const agyPath = resolveAgyPath();
     const sharedContext = sharedMemory.getSystemContext();
-    const fullPrompt = `${SYSTEM_INSTRUCTION}\n${sharedContext}\n\n[USER REQUEST (${task.user || 'Admin'}) via ${task.source || 'console'}]:\n${task.prompt}\n\nCatatan Penting:\n1. Jika membuat file video/reels, gunakan helper 'python scripts/clipper-helper.py' dan simpan di 'data/output'.\n2. Sebutkan nama file output lengkapnya di jawaban akhir agar sistem otomatis mengirimkannya ke Telegram.`;
+    const persona = settings.active_persona;
+    const personaInstruction = persona ? `\n\nPERAN KHUSUS ANDA DI TOPIC INI:\n${persona.instruction}` : '';
+    const fullPrompt = `${SYSTEM_INSTRUCTION}${personaInstruction}\n${sharedContext}\n\n[USER REQUEST (${task.user || 'Admin'}) via ${task.source || 'console'}]:\n${task.prompt}\n\nCatatan Penting:\n1. Jika membuat file video/reels, gunakan helper 'python scripts/clipper-helper.py' dan simpan di 'data/output'.\n2. Sebutkan nama file output lengkapnya di jawaban akhir agar sistem otomatis mengirimkannya ke Telegram.`;
 
     logger.logToolCall('agy_cli', `agy -p ... --model ${modelName}`);
 

@@ -139,12 +139,71 @@ class TelegramService {
 
     // Command handling (Hermes Agent & 9router shortcuts)
     if (text === '/start') {
-      await this.sendMessage(chatId, `🤖 *Tele-AI Studio — Autonomous VPS Agent*\n\nEngine Aktif: *${settings.active_engine}*\nModel: \`${settings.active_model}\`\n\n📌 *Daftar Perintah Cepat:*\n• \`/status\` - Cek kondisi server, engine & antrean\n• \`/stats\` - Detail metrik kuota token & biaya\n• \`/queue\` - Cek status antrean saat ini\n• \`/model [nama]\` - Cek / ubah model AI on-the-fly\n• \`/engine [nama]\` - Ganti engine (agy / gemini_oauth / gemini_api)\n• \`/reels [tema]\` - Buat FB Reels otomatis (16:9 / 9:16)\n• \`/reset\` - Reset status Circuit Breaker\n• \`/help\` - Panduan lengkap\n\nKirim perintah apa saja, AI Agent akan mengeksekusinya di VPS.`, threadId);
+      await this.sendMessage(chatId, `🤖 *Tele-AI Studio — Multi-Persona Autonomous Agent*\n\nEngine Aktif: *${settings.active_engine}*\nModel Default: \`${settings.active_model}\`\n\n📌 *Daftar Perintah Cepat:*\n• \`/status\` - Cek kondisi server, engine & antrean\n• \`/persona\` - Cek persona agen di topic ini\n• \`/setpersona [key]\` - Set persona per topic (clipper / devops / coder / router)\n• \`/topics\` - Daftar semua persona per topic\n• \`/model [nama]\` - Cek / ubah model AI on-the-fly\n• \`/engine [nama]\` - Ganti engine (agy / gemini_oauth / gemini_api)\n• \`/stats\` - Detail metrik kuota token & biaya\n• \`/reels [tema]\` - Buat FB Reels otomatis (16:9 / 9:16)\n• \`/reset\` - Reset status Circuit Breaker\n• \`/help\` - Panduan lengkap\n\nKirim perintah apa saja, AI Agent akan mengeksekusinya di VPS.`, threadId);
       return;
     }
 
     if (text === '/help') {
-      await this.sendMessage(chatId, `📖 *Panduan Penggunaan Tele-AI (Hermes + 9router):*\n\nAnda dapat mengirimkan perintah bebas layaknya asisten pribadi:\n• _"Carikan video podcast bisnis, potong 1 menit, beri judul atas 'RAHASIA SUKSES' dan bawah 'Tonton sampai habis', render 16:9 dan kirim ke sini"_\n• _"Cek disk space dan memory server VPS"_\n• _"Buatkan script cronjob backup di data/backup.sh"_\n• _"List file di direktori data/output"_\n\n👥 *Dukungan Grup & Topic (Forum):*\nBot ini mendukung grup Telegram & Forum Topic! Masukkan bot ke grup, buat topic per kategori, dan bot akan membalas di topic tersebut.\n\nSemua perintah berjalan dalam antrean serial FIFO (Concurrency = 1) dengan circuit breaker anti-403.`, threadId);
+      await this.sendMessage(chatId, `📖 *Panduan Penggunaan Tele-AI (Hermes Swarm + 9router):*\n\n👥 *Mode Agen Berbeda per Topic Telegram:*\nAnda bisa membuat topic terpisah di grup Telegram dengan persona & skills yang berbeda:\n1. Buka topic video/media $\rightarrow$ ketik \`/setpersona clipper\` (spesialis Reels & Clipper).\n2. Buka topic server $\rightarrow$ ketik \`/setpersona devops\` (spesialis Linux sysadmin & PM2).\n3. Buka topic coding $\rightarrow$ ketik \`/setpersona coder\` (spesialis Fullstack developer).\n4. Buka topic kuota $\rightarrow$ ketik \`/setpersona router\` (spesialis 9router kuota).\n\nKetik \`/persona\` untuk cek persona aktif di topic Anda.\n\nSemua perintah berjalan dalam antrean serial FIFO (Concurrency = 1) dengan circuit breaker anti-403.`, threadId);
+      return;
+    }
+
+    // Persona commands (Hermes Swarm per Topic)
+    if (text === '/persona') {
+      const allTemplates = db.getPersonaTemplates();
+      const current = db.getTopicPersona(threadId);
+
+      if (threadId && current) {
+        await this.sendMessage(chatId, `🎭 *Persona Aktif di Topic #${threadId}:*\n• Nama: *${current.icon} ${current.name}*\n• Model: \`${current.model}\`\n• Deskripsi: _${current.description}_\n• Skills: \`${current.skills.join(', ')}\`\n\nUntuk mengganti persona di topic ini, ketik:\n\`/setpersona <clipper | devops | coder | router | general>\``, threadId);
+      } else {
+        let listText = `🎭 *Daftar Persona Agen Tersedia:*\n\n`;
+        for (const [k, p] of Object.entries(allTemplates)) {
+          listText += `• *${p.icon} ${p.name}* (\`${k}\`)\n  Model: \`${p.model}\` | _${p.description}_\n\n`;
+        }
+        listText += `💡 *Cara Pasang:* Buka topic di grup Telegram Anda, lalu ketik:\n\`/setpersona <nama_key>\`\nContoh: \`/setpersona clipper\``;
+        await this.sendMessage(chatId, listText, threadId);
+      }
+      return;
+    }
+
+    if (text.startsWith('/setpersona')) {
+      const parts = text.split(' ').filter(Boolean);
+      if (parts.length === 1) {
+        await this.sendMessage(chatId, `💡 *Format Penggunaan:* \`/setpersona <key>\`\n\nPilihan Persona:\n• \`/setpersona clipper\` - 🎬 Reels & Media Creator\n• \`/setpersona devops\` - 💻 DevOps & Linux Sysadmin\n• \`/setpersona coder\` - 🐍 Fullstack Software Engineer\n• \`/setpersona router\` - 📊 Quota & 9router Controller\n• \`/setpersona general\` - 🤖 Executive Assistant (Default)`, threadId);
+        return;
+      }
+
+      if (!threadId) {
+        await this.sendMessage(chatId, `⚠️ Perintah \`/setpersona\` dirancang khusus untuk Forum Topic di grup Telegram agar setiap topic punya agent sendiri.\nJika ingin mengubah model global, gunakan perintah \`/model <nama_model>\`.`, threadId);
+        return;
+      }
+
+      const pKey = parts[1].trim().toLowerCase();
+      const templates = db.getPersonaTemplates();
+      if (!templates[pKey]) {
+        await this.sendMessage(chatId, `❌ Persona \`${pKey}\` tidak dikenal. Pilihan: \`clipper\`, \`devops\`, \`coder\`, \`router\`, \`general\``, threadId);
+        return;
+      }
+
+      const updated = db.setTopicPersona(threadId, pKey);
+      logger.logInfo(`Topic Persona Diubah [#${threadId}]`, `${updated.icon} ${updated.name}`);
+      await this.sendMessage(chatId, `✅ *Persona Topic #${threadId} Berhasil Diatur:*\n${updated.icon} *${updated.name}*\n• Model: \`${updated.model}\`\n• Skills: \`${updated.skills.join(', ')}\`\n• _${updated.description}_`, threadId);
+      return;
+    }
+
+    if (text === '/topics') {
+      const all = db.getTopicPersonas();
+      const keys = Object.keys(all);
+      if (keys.length === 0) {
+        await this.sendMessage(chatId, `📋 *Belum ada Topic Persona yang dikonfigurasi.*\n\nBuka topic mana saja di grup Telegram Anda, lalu ketik:\n\`/setpersona clipper\` (atau \`devops\`, \`coder\`, \`router\`)`, threadId);
+      } else {
+        let msgTopics = `📋 *Daftar Agen per Topic Telegram (Hermes Swarm):*\n\n`;
+        for (const tid of keys) {
+          const item = all[tid];
+          msgTopics += `• *Topic #${tid}*: ${item.icon} *${item.name}* (\`${item.key}\`)\n  Model: \`${item.model}\`\n`;
+        }
+        await this.sendMessage(chatId, msgTopics, threadId);
+      }
       return;
     }
 
