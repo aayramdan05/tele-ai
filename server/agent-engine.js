@@ -147,8 +147,9 @@ class AgentEngine {
       const child = spawn(agyPath, args, {
         cwd: path.join(__dirname, '..'),
         env: { ...process.env },
+        stdio: ['ignore', 'pipe', 'pipe'], // Immediately close stdin so CLI does not block on EOF
         windowsHide: true,
-        timeout: 300000 // 5 minutes max
+        timeout: 120000 // 2 minutes max
       });
 
       let stdout = '';
@@ -180,7 +181,7 @@ class AgentEngine {
     logger.logResponse(result);
 
     // Look for generated files to send to Telegram (e.g. mp4 videos in data/output)
-    const sentFiles = await this.checkForOutputFiles(task.chatId, result);
+    const sentFiles = await this.checkForOutputFiles(task.chatId, result, task.threadId);
 
     db.addTaskHistory({
       prompt: task.prompt,
@@ -465,7 +466,7 @@ class AgentEngine {
     logger.logResponse(finalResponseText, { totalTokens });
 
     // Look for generated files to send to Telegram
-    const additionalFiles = await this.checkForOutputFiles(task.chatId, finalResponseText);
+    const additionalFiles = await this.checkForOutputFiles(task.chatId, finalResponseText, task.threadId);
     const allFilesSent = [...filesSent, ...additionalFiles];
 
     db.addTaskHistory({
@@ -487,7 +488,7 @@ class AgentEngine {
   /**
    * Scan response text or output folder for created video/media files and auto-send to Telegram
    */
-  async checkForOutputFiles(chatId, responseText) {
+  async checkForOutputFiles(chatId, responseText, threadId = null) {
     const sent = [];
     if (!chatId) return sent;
 
@@ -501,7 +502,7 @@ class AgentEngine {
         }
         if (fs.existsSync(fullPath)) {
           try {
-            await telegramTool.sendFile(chatId, fullPath, '🎬 Video hasil Reels Anda sudah siap!');
+            await telegramTool.sendFile(chatId, fullPath, '🎬 Video hasil Reels Anda sudah siap!', threadId);
             sent.push(fullPath);
           } catch (e) {
             console.error('[AGENT] Gagal auto-send file:', e.message);

@@ -11,8 +11,8 @@ class TelegramTool {
     this.telegramService = service;
   }
 
-  async sendFile(chatId, filePath, caption = '') {
-    logger.logToolCall('telegram_send_file', filePath, { chatId, caption });
+  async sendFile(chatId, filePath, caption = '', threadId = null) {
+    logger.logToolCall('telegram_send_file', filePath, { chatId, caption, threadId });
     if (!this.telegramService) {
       return { success: false, error: 'Telegram Service belum siap.' };
     }
@@ -23,7 +23,7 @@ class TelegramTool {
         return { success: false, error: `File tidak ditemukan: ${filePath}` };
       }
 
-      const res = await this.telegramService.sendFile(chatId, fullPath, caption);
+      const res = await this.telegramService.sendFile(chatId, fullPath, caption, threadId);
       logger.logToolOutput('telegram_send_file', `File terkirim ke Telegram: ${path.basename(fullPath)}`);
       return { success: true, file: path.basename(fullPath), result: res };
     } catch (err) {
@@ -32,12 +32,12 @@ class TelegramTool {
     }
   }
 
-  async sendMessage(chatId, text) {
+  async sendMessage(chatId, text, threadId = null) {
     if (!this.telegramService) {
       return { success: false, error: 'Telegram Service belum siap.' };
     }
     try {
-      const res = await this.telegramService.sendMessage(chatId, text);
+      const res = await this.telegramService.sendMessage(chatId, text, threadId);
       return { success: true, result: res };
     } catch (err) {
       return { success: false, error: err.message };
