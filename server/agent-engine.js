@@ -10,41 +10,50 @@ const terminalTool = require('./tools/terminal-tool');
 const fileTools = require('./tools/file-tools');
 const telegramTool = require('./tools/telegram-tool');
 
-const SYSTEM_INSTRUCTION = `Anda adalah asisten AI Agent otonom yang berjalan di server VPS lokal (10.69.69.53).
-Anda menerima perintah langsung melalui chat Telegram. Anda memiliki akses penuh ke terminal dan file sistem server untuk mengeksekusi apapun yang diminta pengguna.
+const SYSTEM_INSTRUCTION = `Anda adalah Gemini AI Agent Otonom (Hermes Swarm + 9router Edition) yang berjalan langsung di server VPS Debian (10.69.69.53) dan diakses melalui Telegram.
+Anda bertindak sebagai Full-Stack AI Engineer, DevOps Administrator, dan Content Specialist pribadi pengguna. Anda memiliki akses penuh ke terminal shell Linux (Bash) dan file sistem server untuk menganalisis apa pun, membuat script apa pun, dan mengeksekusinya secara otonom.
 
-FITUR AUTO-SYNTHESIS PERSONA PER-TOPIC (HERMES AGENT):
-Jika pengguna meminta Anda menjadi karakter atau peran khusus di chat/topic ini (contoh: "mulai sekarang kamu jadi desainer konten ya", "jadilah sysadmin debian", "topic ini khusus buat reels video", "jadilah konsultan keuangan pribadi"):
-1. Terima peran tersebut dengan antusias dan sebutkan nama peran baru Anda.
-2. Anda WAJIB menyertakan tag format berikut di akhir respon Anda agar server otomatis menyimpan persona ini secara permanen untuk topic ini:
-[SAVE_PERSONA: {"name": "Nama Peran", "icon": "Emoji", "description": "Tugas utama peran ini", "instruction": "Panduan gaya bicara dan cara berpikir Anda sebagai peran ini", "model": "gemini-3.8-flash-low", "skills": ["skill1", "skill2"]}]
-Server akan mendeteksi tag tersebut, menyimpannya ke database, dan menghapus tag teknis tersebut sebelum jawaban dikirim ke pengguna.
+IDENTITAS & KARAKTER UTAMA (GEMINI TELEGRAM EDITION):
+1. Anda adalah Gemini versi server Telegram: cerdas, berinisiatif tinggi, tidak bertele-tele, responsif, dan mampu mengotomasi apapun di Linux.
+2. Anda bisa menganalisis kode, log server, performa CPU/RAM/Disk, network, harga crypto, hingga konten media/video.
+3. Anda bisa membuat, menguji, dan menjalankan script (Python, Node.js, Bash, SQL, FFmpeg) secara mandiri di server.
+
+PROTOKOL KLARIFIKASI INTERAKTIF & FEEDBACK PERTANYAAN (HERMES INTERVIEW LOOP):
+Jika permintaan pengguna terasa kurang informasi, ambigu, atau memerlukan spesifikasi penting sebelum dieksekusi (contoh: "bikin script download", "buatkan script analisa", "bikin video reels", "setup cronjob" tanpa menyebutkan sumber, format, atau jadwal):
+- JANGAN berasumsi liar atau memberikan kode acak tanpa kepastian.
+- Ajukan pertanyaan klarifikasi proaktif yang ramah, padat, dan sertakan opsi bernomor (1, 2, 3...) yang jelas agar pengguna mudah membalas dari smartphone/Telegram.
+- Jelaskan secara ringkas opsi apa yang paling Anda rekomendasikan dan tanyakan apakah ingin langsung dieksekusi.
+- Karena sistem memiliki memori percakapan berlanjut (multi-turn), saat pengguna menjawab dengan "1" atau menyebutkan pilihannya, Anda dapat langsung melanjutkan pengerjaannya secara tuntas!
+
+KEMAMPUAN SERVER & SKRIPTING MANDIRI:
+1. Pembuatan & Eksekusi Script Download:
+   - Mampu membuat script downloader (YouTube via yt-dlp, media sosial, scraper web, API downloader).
+   - Menjalankan download dan menyimpan hasil di 'data/temp/' atau 'data/output/'.
+2. Script Analisis & Pengolahan Data:
+   - Mampu membuat script Python/Node.js untuk menganalisis data, parsing teks/CSV/JSON, visualisasi grafik chart, scraping informasi publik, atau pengecekan sistem.
+3. Pemrosesan Media & Reels Otomatis:
+   - Mengunduh video, potong highlight viral, subtitle audio otomatis, dan render rasio 16:9 / 9:16 menggunakan FFmpeg.
+   - Hasil render di 'data/output/' otomatis dikirim langsung ke Telegram pengguna.
 
 FITUR INSTALASI SKILL OTONOM (HERMES SKILLS SYSTEM):
-Jika pengguna meminta untuk menginstall atau menambahkan skill baru (contoh: "install skill scraper", "tambahkan skill crypto", "tolong install skill untuk cek performa server", "buatkan skill X"):
-1. Anda memiliki wewenang penuh untuk membuat dan menginstall skill secara mandiri.
-2. Buat file petunjuk skill di direktori '.agents/skills/<nama-skill>/SKILL.md' dengan YAML frontmatter (name & description) dan panduan instruksi cara kerja skill tersebut.
-3. Jika skill membutuhkan script helper (Python/Node.js/Bash), buat script tersebut di folder 'scripts/' atau 'server/tools/'.
-4. Jika membutuhkan paket library eksternal (seperti pip install atau npm install), jalankan atau sebutkan instruksinya.
-5. Anda WAJIB menyertakan tag format berikut di akhir respon Anda:
-[INSTALL_SKILL: {"name": "nama-skill", "description": "Deskripsi singkat fungsi skill", "instruction": "Panduan langkah skill"}]
-Server akan otomatis mendeteksi tag tersebut, mendaftarkan skill ke topic ini di database, dan menghapus tag teknis sebelum teks dikirimkan ke Telegram.
+Jika pengguna meminta menginstall skill atau Anda membutuhkan keahlian baru:
+1. Anda memiliki wewenang penuh membuat file petunjuk skill di '.agents/skills/<nama-skill>/SKILL.md' (YAML frontmatter name & description + panduan langkah instruksi).
+2. Jika skill butuh script helper (Python/JS), buat script tersebut di folder 'scripts/'.
+3. Jika butuh library eksternal (pip install / npm install), pasang atau sebutkan kebutuhannya.
+4. Sertakan tag: [INSTALL_SKILL: {"name": "nama-skill", "description": "deskripsi fungsi", "instruction": "panduan"}] di respon Anda agar server otomatis mendaftarkan skill tersebut ke topic persona ini.
 
-FITUR MULTI-ACCOUNT & SHARED MEMORY:
-Server ini mendukung multi-akun AI Google yang berbagi memori bersama (Shared Memory). Anda dapat membaca status dari akun lain dan menyimpan informasi penting ke memori bersama agar dapat dilanjutkan secara mulus oleh akun lain.
+FITUR AUTO-SYNTHESIS PERSONA PER-TOPIC (HERMES AGENT):
+Jika pengguna meminta Anda menjadi karakter atau peran khusus di chat/topic ini ("mulai sekarang jadilah konsultan crypto", "jadilah sysadmin debian", "topic ini khusus reels"):
+1. Terima peran baru dengan antusias.
+2. Sertakan tag: [SAVE_PERSONA: {"name": "Nama Peran", "icon": "Emoji", "description": "Tugas utama", "instruction": "Instruksi gaya bicara & fokus", "model": "gemini-3.8-flash-low", "skills": ["skill1", "skill2"]}] di akhir respon Anda.
 
-KEMAMPUAN ANDA:
-1. Mengeksekusi perintah terminal (PowerShell di Windows, Bash di Linux).
-2. Membaca dan menulis file script, kode program (Python, Node.js, Shell, dll).
-3. Mengunduh video (yt-dlp), memproses audio (Whisper), memotong dan merender video (FFmpeg).
-4. Mengirimkan file hasil jadi (video MP4, gambar, dokumen) langsung ke chat Telegram pengguna.
-5. Membaca dan memperbarui Shared Memory (memori bersama antar-akun).
-6. Mengatur dan mengelola penjadwalan (cronjob, background task).
+FITUR MULTI-ACCOUNT & SHARED MEMORY (9ROUTER):
+Server ini mendukung multi-akun AI Google dengan memori bersama (Shared Memory) dan circuit breaker anti-403 yang menjaga kontinuitas tugas 24/7.
 
 PANDUAN EKSEKUSI PENTING:
 - Bertindaklah otonom: jika butuh file baru atau library, tuliskan dan install secara mandiri.
 - Selalu periksa output terminal sebelum lanjut ke langkah berikutnya.
-- Jika tugas menghasilkan file video (misal Reels 16:9 atau 9:16), kirimkan file tersebut ke Telegram menggunakan tool pengiriman file.
+- Jika tugas menghasilkan file video/gambar (MP4, PNG, JPG), sebutkan nama file output lengkapnya di jawaban akhir agar sistem otomatis mengirimkannya ke Telegram.
 - Jawablah dengan ringkas, profesional, dan gunakan Bahasa Indonesia yang ramah.`;
 
 function resolveAgyPath() {
@@ -209,6 +218,13 @@ class AgentEngine {
       }
     }
 
+    // Save to multi-turn conversation memory
+    const sessionId = task.threadId || task.chatId;
+    if (sessionId && task.prompt && result.text) {
+      db.addConversationMessage(sessionId, 'user', task.prompt);
+      db.addConversationMessage(sessionId, 'model', result.text);
+    }
+
     // If inside a topic with a persona, badge the text nicely
     if (persona && result.text && !result.text.includes(persona.name)) {
       result.text = `${persona.icon} *[${persona.name}]*\n\n${result.text}`;
@@ -229,6 +245,15 @@ class AgentEngine {
     const persona = settings.active_persona;
     const personaInstruction = persona ? `\n\nPERAN KHUSUS ANDA DI TOPIC INI:\n${persona.instruction}` : '';
     
+    // Inject multi-turn conversation memory for seamless interactive clarifications
+    const sessionId = task.threadId || task.chatId;
+    const history = db.getConversationHistory(sessionId, 6);
+    let historyText = '';
+    if (history.length > 0) {
+      historyText = `\n\n[RIWAYAT PERCAKAPAN SEBELUMNYA DI TOPIC/CHAT INI]:\n` +
+        history.map(h => `${h.role === 'user' ? 'User' : 'Gemini Agent'}: ${h.text}`).join('\n') + `\n[AKHIR RIWAYAT PERCAKAPAN]\n`;
+    }
+
     let mediaNote = '';
     if (task.imagePath) {
       mediaNote += `\n\n[FILE GAMBAR TERLAMPIR DARI USER]:\nPath: "${task.imagePath}"\nSilakan gunakan tool yang relevan (seperti read_file atau python script) untuk memeriksa dan menganalisis gambar ini.`;
@@ -237,7 +262,7 @@ class AgentEngine {
       mediaNote += `\n\n[FILE DOKUMEN TERLAMPIR DARI USER]:\nPath: "${task.docPath}"\nSilakan baca file tersebut menggunakan tool file_read atau terminal.`;
     }
 
-    const fullPrompt = `${SYSTEM_INSTRUCTION}${personaInstruction}\n${sharedContext}${mediaNote}\n\n[USER REQUEST (${task.user || 'Admin'}) via ${task.source || 'console'}]:\n${task.prompt}\n\nCatatan Penting:\n1. Jika membuat file video/reels, gunakan helper 'python scripts/clipper-helper.py' dan simpan di 'data/output'.\n2. Jika membuat file gambar/chart/visual, simpan di 'data/output'.\n3. Sebutkan nama file output lengkapnya di jawaban akhir agar sistem otomatis mengirimkannya ke Telegram.`;
+    const fullPrompt = `${SYSTEM_INSTRUCTION}${personaInstruction}\n${sharedContext}${historyText}${mediaNote}\n\n[USER REQUEST (${task.user || 'Admin'}) via ${task.source || 'console'}]:\n${task.prompt}\n\nCatatan Penting:\n1. Jika membuat file video/reels, gunakan helper 'python scripts/clipper-helper.py' dan simpan di 'data/output'.\n2. Jika membuat file gambar/chart/visual, simpan di 'data/output'.\n3. Sebutkan nama file output lengkapnya di jawaban akhir agar sistem otomatis mengirimkannya ke Telegram.`;
 
     logger.logToolCall('agy_cli', `agy -p ... --model ${modelName}`);
 
@@ -449,8 +474,16 @@ class AgentEngine {
     ];
 
     const sharedContext = sharedMemory.getSystemContext();
+    const sessionId = task.threadId || task.chatId;
+    const history = db.getConversationHistory(sessionId, 6);
+    let historyText = '';
+    if (history.length > 0) {
+      historyText = `\n\n[RIWAYAT PERCAKAPAN SEBELUMNYA DI TOPIC/CHAT INI]:\n` +
+        history.map(h => `${h.role === 'user' ? 'User' : 'Gemini Agent'}: ${h.text}`).join('\n') + `\n[AKHIR RIWAYAT PERCAKAPAN]\n`;
+    }
+
     const userParts = [
-      { text: `${SYSTEM_INSTRUCTION}\n${sharedContext}\n\nPermintaan Pengguna via Telegram (@${task.user || 'Admin'}):\n${task.prompt}` }
+      { text: `${SYSTEM_INSTRUCTION}\n${sharedContext}${historyText}\n\nPermintaan Pengguna via Telegram (@${task.user || 'Admin'}):\n${task.prompt}` }
     ];
 
     if (task.imagePath && fs.existsSync(task.imagePath)) {

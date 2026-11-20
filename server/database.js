@@ -97,7 +97,8 @@ const DEFAULT_DATA = {
     }
   ],
   task_history: [],
-  topic_personas: {}
+  topic_personas: {},
+  conversation_history: {}
 };
 
 class Database {
@@ -125,7 +126,8 @@ class Database {
           flow_logs: Array.isArray(parsed.flow_logs) ? parsed.flow_logs.slice(-300) : [],
           cron_jobs: Array.isArray(parsed.cron_jobs) ? parsed.cron_jobs : DEFAULT_DATA.cron_jobs,
           task_history: Array.isArray(parsed.task_history) ? parsed.task_history.slice(-100) : [],
-          topic_personas: (parsed.topic_personas && typeof parsed.topic_personas === 'object') ? parsed.topic_personas : {}
+          topic_personas: (parsed.topic_personas && typeof parsed.topic_personas === 'object') ? parsed.topic_personas : {},
+          conversation_history: (parsed.conversation_history && typeof parsed.conversation_history === 'object') ? parsed.conversation_history : {}
         };
         if (!this.data.settings.telegram_bot_token && process.env.TELEGRAM_BOT_TOKEN) {
           this.data.settings.telegram_bot_token = process.env.TELEGRAM_BOT_TOKEN;
@@ -387,6 +389,39 @@ class Database {
     delete this.data.topic_personas[String(threadId)];
     this.save();
     return true;
+  }
+
+  // --- MULTI-TURN CONVERSATION MEMORY (Per Topic / Chat) ---
+  addConversationMessage(sessionId, role, text) {
+    if (!sessionId || !text) return;
+    const sid = String(sessionId);
+    if (!this.data.conversation_history) this.data.conversation_history = {};
+    if (!Array.isArray(this.data.conversation_history[sid])) {
+      this.data.conversation_history[sid] = [];
+    }
+    this.data.conversation_history[sid].push({
+      role: role === 'user' ? 'user' : 'assistant',
+      text: String(text).trim(),
+      timestamp: new Date().toISOString()
+    });
+    // Keep last 10 messages per session
+    if (this.data.conversation_history[sid].length > 10) {
+      this.data.conversation_history[sid] = this.data.conversation_history[sid].slice(-10);
+    }
+    this.save();
+  }
+
+  getConversationHistory(sessionId, limit = 6) {
+    if (!sessionId || !this.data.conversation_history) return [];
+    const sid = String(sessionId);
+    const history = this.data.conversation_history[sid] || [];
+    return history.slice(-limit);
+  }
+
+  clearConversationHistory(sessionId) {
+    if (!sessionId || !this.data.conversation_history) return;
+    delete this.data.conversation_history[String(sessionId)];
+    this.save();
   }
 }
 

@@ -325,7 +325,9 @@ class TelegramService {
     if (text === '/reset') {
       const circuitBreaker = require('./circuit-breaker');
       circuitBreaker.resetBreaker();
-      await this.sendMessage(chatId, `✅ *Circuit Breaker Berhasil Direset ke Healthy!*`, threadId);
+      const targetSession = threadId || chatId;
+      db.clearConversationHistory(targetSession);
+      await this.sendMessage(chatId, `✅ *Circuit Breaker & Memori Obrolan Topic Berhasil Direset ke Bersih!*`, threadId);
       return;
     }
 
