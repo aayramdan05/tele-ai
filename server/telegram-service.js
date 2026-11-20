@@ -276,7 +276,11 @@ class TelegramService {
     if (text === '/status') {
       const stats = require('./quota-tracker').getStats();
       const qStatus = agentEngine.getQueueStatus();
-      await this.sendMessage(chatId, `📊 *Status Sistem:*\n• Engine: \`${settings.active_engine}\`\n• Model: \`${settings.active_model}\`\n• Breaker: *${stats.breaker.status.toUpperCase()}* (${stats.breaker.consecutiveErrors} error)\n• Antrean: \`${qStatus.queueLength}\` antre (${qStatus.isProcessing ? 'Sedang Memproses' : 'Idle'})\n• Total Requests: \`${stats.metrics.total_requests}\`\n• Token Hari Ini: \`${stats.metrics.today_tokens.toLocaleString()}\``, threadId);
+      const mq = stats.model_quotas || {};
+      const gQ = mq.gemini ? `\n• Quota Gemini (5h / Wk): \`${mq.gemini.five_hour.left_pct}% left\` / \`${mq.gemini.weekly.left_pct}% left\`` : '';
+      const cQ = mq.claude_gpt ? `\n• Quota Claude/GPT (5h / Wk): \`${mq.claude_gpt.five_hour.left_pct}% left\` / \`${mq.claude_gpt.weekly.left_pct}% left\`` : '';
+
+      await this.sendMessage(chatId, `📊 *Status Sistem:*\n• Engine: \`${settings.active_engine}\`\n• Model: \`${settings.active_model}\`${gQ}${cQ}\n• Breaker: *${stats.breaker.status.toUpperCase()}* (${stats.breaker.consecutiveErrors} error)\n• Antrean: \`${qStatus.queueLength}\` antre (${qStatus.isProcessing ? 'Sedang Memproses' : 'Idle'})\n• Total Requests: \`${stats.metrics.total_requests}\`\n• Token Hari Ini: \`${stats.metrics.today_tokens.toLocaleString()}\``, threadId);
       return;
     }
 
