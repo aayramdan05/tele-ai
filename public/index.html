@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tele-AI Studio — Autonomous Agent & Quota Flow Monitor</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-layout">
+    <!-- SIDEBAR NAVIGATION -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-icon">⚡</div>
+        <div class="brand-text">
+          <h1>Tele-AI Studio</h1>
+          <span class="badge-vps">VPS 10.69.69.53</span>
+        </div>
+      </div>
+
+      <nav class="nav-menu">
+        <button class="nav-btn active" data-tab="tab-dashboard">
+          <span class="icon">📊</span>
+          <span>Dashboard & Kuota</span>
+        </button>
+        <button class="nav-btn" data-tab="tab-flow">
+          <span class="icon">⚡</span>
+          <span>Live Flow Monitor</span>
+          <span class="pulse-dot" id="flow-pulse"></span>
+        </button>
+        <button class="nav-btn" data-tab="tab-console">
+          <span class="icon">💬</span>
+          <span>Agent Console</span>
+        </button>
+        <button class="nav-btn" data-tab="tab-cron">
+          <span class="icon">⏰</span>
+          <span>Cron Automations</span>
+        </button>
+        <button class="nav-btn" data-tab="tab-clipper">
+          <span class="icon">🎬</span>
+          <span>Reels Clipper Studio</span>
+        </button>
+        <button class="nav-btn" data-tab="tab-memory">
+          <span class="icon">🧠</span>
+          <span>Shared Memory</span>
+        </button>
+        <button class="nav-btn" data-tab="tab-settings">
+          <span class="icon">⚙️</span>
+          <span>Settings & OAuth</span>
+        </button>
+        <button class="nav-btn" data-tab="tab-guardrails">
+          <span class="icon">🛡️</span>
+          <span>Circuit Breaker</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="connection-status">
+          <span class="status-indicator online" id="ws-indicator"></span>
+          <span id="ws-status-text">Live WebSocket</span>
+        </div>
+        <div class="engine-badge" id="sidebar-engine-badge">
+          Engine: <b id="lbl-engine">agy</b>
+        </div>
+      </div>
+    </aside>
+
+    <!-- MAIN CONTENT AREA -->
+    <main class="main-content">
+      <!-- TOP STATUS BAR -->
+      <header class="top-bar">
+        <div class="top-title">
+          <h2 id="page-title">Dashboard & Monitoring Kuota</h2>
+          <p id="page-subtitle">Pemantauan real-time AI Agent, antrean request Telegram, dan circuit breaker.</p>
+        </div>
+        <div class="top-actions">
+          <div class="breaker-pill healthy" id="top-breaker-pill">
+            <span class="dot"></span>
+            <span id="top-breaker-text">BREAKER: HEALTHY</span>
+          </div>
+          <div class="telegram-pill online" id="top-telegram-pill">
+            <span class="dot"></span>
+            <span id="top-telegram-text">TELEGRAM: ONLINE</span>
+          </div>
+        </div>
+      </header>
+
+      <!-- TAB 1: DASHBOARD & METRICS -->
+      <section class="tab-pane active" id="tab-dashboard">
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-header">
+              <span class="stat-title">Total Request</span>
+              <span class="stat-icon">📨</span>
+            </div>
+            <div class="stat-value" id="val-total-requests">0</div>
+            <div class="stat-sub" id="val-success-rate">100% Berhasil</div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-header">
+              <span class="stat-title">Token Hari Ini</span>
+              <span class="stat-icon">🪙</span>
+            </div>
+            <div class="stat-value" id="val-today-tokens">0</div>
+            <div class="stat-sub" id="val-total-tokens">Total: 0 tokens</div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-header">
+              <span class="stat-title">Trafik / Menit</span>
+              <span class="stat-icon">⚡</span>
+            </div>
+            <div class="stat-value"><span id="val-current-rpm">0</span> <small>RPM</small></div>
+            <div class="stat-sub"><span id="val-current-tpm">0</span> TPM (Tokens/min)</div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-header">
+              <span class="stat-title">Circuit Breaker</span>
+              <span class="stat-icon">🛡️</span>
+            </div>
+            <div class="stat-value" id="val-breaker-status">HEALTHY</div>
+            <div class="stat-sub" id="val-breaker-trips">0 kali terpicu</div>
+          </div>
+        </div>
+
+        <div class="dashboard-row">
+          <div class="card card-graph">
+            <div class="card-header">
+              <h3>Aktivitas Penggunaan 24 Jam Terakhir</h3>
+              <span class="card-tag">Distribusi Request</span>
+            </div>
+            <div class="chart-container">
+              <div class="bar-chart" id="hourly-chart">
+                <!-- Injected via JS -->
+              </div>
+            </div>
+          </div>
+
+          <div class="card card-engine-summary">
+            <div class="card-header">
+              <h3>Status Otentikasi & Mesin</h3>
+            </div>
+            <div class="engine-info-list">
+              <div class="info-row">
+                <span>Model Aktif:</span>
+                <strong id="dash-active-model">gemini-3.8-flash-high</strong>
+              </div>
+              <div class="info-row">
+                <span>Metode Auth:</span>
+                <strong id="dash-auth-method">Antigravity CLI (agy)</strong>
+              </div>
+              <div class="info-row">
+                <span>Pacing Delay:</span>
+                <strong id="dash-pacing">2000 ms</strong>
+              </div>
+              <div class="info-row">
+                <span>Concurrency Limit:</span>
+                <strong id="dash-concurrency">1 (Strict Serial)</strong>
+              </div>
+              <div class="info-row">
+                <span>Estimasi Biaya Hemat:</span>
+                <strong class="text-success" id="dash-cost-savings">Rp 0</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 2: LIVE FLOW MONITOR (9ROUTER STYLE) -->
+      <section class="tab-pane" id="tab-flow">
+        <div class="flow-toolbar">
+          <div class="filter-group">
+            <button class="filter-btn active" data-filter="all">Semua Event</button>
+            <button class="filter-btn" data-filter="prompt">Prompts Telegram</button>
+            <button class="filter-btn" data-filter="tool_call">Tool & Terminal</button>
+            <button class="filter-btn" data-filter="response">Balasan AI</button>
+            <button class="filter-btn" data-filter="breaker">Circuit Breaker</button>
+          </div>
+          <div class="action-group">
+            <label class="toggle-label">
+              <input type="checkbox" id="chk-autoscroll" checked>
+              <span>Auto-Scroll</span>
+            </label>
+            <button class="btn btn-sm btn-outline" id="btn-clear-flow">Bersihkan Log</button>
+          </div>
+        </div>
+
+        <div class="flow-container" id="flow-stream">
+          <div class="flow-empty">Menunggu interaksi masuk dari Telegram atau Console...</div>
+        </div>
+      </section>
+
+      <!-- TAB 3: AGENT CONSOLE (BROWSER CHAT & TERMINAL) -->
+      <section class="tab-pane" id="tab-console">
+        <div class="console-wrapper">
+          <div class="console-logs" id="console-output">
+            <div class="console-welcome">
+              <h3>💬 Web Interactive Agent Console</h3>
+              <p>Anda dapat menguji instruksi AI Agent langsung dari sini tanpa membuka Telegram.</p>
+              <p>Contoh perintah: <code>Tolong periksa versi python dan ffmpeg di server</code> atau <code>Buatkan script python test</code></p>
+            </div>
+          </div>
+
+          <div class="console-input-bar">
+            <textarea id="console-prompt-input" rows="2" placeholder="Ketik perintah atau prompt untuk dieksekusi oleh AI Agent di VPS... (Ctrl+Enter untuk kirim)"></textarea>
+            <button class="btn btn-primary" id="btn-send-console">Kirim Perintah</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 4: CRON AUTOMATIONS -->
+      <section class="tab-pane" id="tab-cron">
+        <div class="section-header">
+          <div>
+            <h3>Penjadwalan Tugas Otomatis (Cron Jobs)</h3>
+            <p>Jalankan prompt AI Agent atau video clipping secara berkala tanpa campur tangan manusia.</p>
+          </div>
+          <button class="btn btn-primary" id="btn-add-cron">+ Tambah Tugas Cron</button>
+        </div>
+
+        <div class="cron-list" id="cron-container">
+          <!-- Injected via JS -->
+        </div>
+
+        <!-- Add Cron Modal -->
+        <div class="modal-backdrop" id="cron-modal" style="display:none;">
+          <div class="modal-box">
+            <h3>Tambah / Edit Tugas Otomatis</h3>
+            <div class="form-group">
+              <label>Nama Tugas</label>
+              <input type="text" id="cron-name" placeholder="Misal: Auto Video Clipper Pagi">
+            </div>
+            <div class="form-group">
+              <label>Jadwal Cron Expression (Standar 5-field)</label>
+              <input type="text" id="cron-schedule" value="0 */4 * * *" placeholder="Misal: 0 */4 * * * (tiap 4 jam)">
+              <small class="helper-text">Contoh: <code>0 8 * * *</code> (tiap jam 8 pagi), <code>0 */2 * * *</code> (tiap 2 jam)</small>
+            </div>
+            <div class="form-group">
+              <label>Prompt Perintah untuk AI Agent</label>
+              <textarea id="cron-prompt" rows="3" placeholder="Tulis instruksi lengkap yang harus dijalankan agent..."></textarea>
+            </div>
+            <div class="form-group">
+              <label class="toggle-label">
+                <input type="checkbox" id="cron-enabled" checked>
+                <span>Aktifkan Tugas Ini</span>
+              </label>
+            </div>
+            <div class="modal-actions">
+              <button class="btn btn-secondary" id="btn-cancel-cron">Batal</button>
+              <button class="btn btn-primary" id="btn-save-cron">Simpan Jadwal</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 5: REELS CLIPPER STUDIO -->
+      <section class="tab-pane" id="tab-clipper">
+        <div class="card">
+          <div class="card-header">
+            <h3>🎬 Facebook Reels Auto Clipper Pipeline</h3>
+            <span class="card-tag">Format 16:9 Letterbox & 9:16 Vertikal</span>
+          </div>
+          <div class="clipper-guide">
+            <p>Untuk menghindari risiko pemblokiran 403, sistem ini menggunakan <b>arsitektur hybrid</b>:</p>
+            <div class="pipeline-steps">
+              <div class="step-card">
+                <span class="step-num">1</span>
+                <h4>Discovery & Download</h4>
+                <p>Menggunakan <code>yt-dlp</code> di VPS secara lokal tanpa menyentuh Google API.</p>
+              </div>
+              <div class="step-card">
+                <span class="step-num">2</span>
+                <h4>Transkripsi Subtitle</h4>
+                <p>Menggunakan <code>faster-whisper</code> offline di server untuk akurasi timestamp per kata.</p>
+              </div>
+              <div class="step-card">
+                <span class="step-num">3</span>
+                <h4>Kurasi Konten (Gemini)</h4>
+                <p><b>HANYA 1x API CALL</b> untuk menentukan 45 detik terbaik dan membuat Judul Hook.</p>
+              </div>
+              <div class="step-card">
+                <span class="step-num">4</span>
+                <h4>Render FFmpeg</h4>
+                <p>Memotong video, memberi padding bar atas-bawah, dan burn subtitle font tebal.</p>
+              </div>
+            </div>
+
+            <div class="clipper-presets">
+              <h4>Format Video FB Reels:</h4>
+              <div class="preset-box">
+                <b>Opsi 1: Rasio 16:9 Landscape dengan Top & Bottom Title</b>
+                <pre><code>ffmpeg -i input.mp4 -vf "pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black,drawtext=text='JUDUL ATAS':fontcolor=yellow:fontsize=48:x=(w-text_w)/2:y=60" output.mp4</code></pre>
+              </div>
+              <div class="preset-box">
+                <b>Opsi 2: Rasio 9:16 Vertikal (Full Reels) dengan Video di Tengah</b>
+                <pre><code>ffmpeg -i input.mp4 -vf "scale=1080:-1,pad=1080:1920:0:(1920-ih)/2:black,drawtext=text='HOOK VIRAL':fontsize=54:fontcolor=white:x=(w-text_w)/2:y=200" output_reels.mp4</code></pre>
+              </div>
+            </div>
+
+            <div class="clipper-trigger">
+              <p>Anda bisa langsung meminta agent via Telegram: <i>"Jalankan scripts/clipper-helper.py untuk link video https://... jadikan reels 16:9 judul atas-bawah dan kirim videonya kesini"</i></p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB: SHARED MEMORY & MULTI-ACCOUNT SWARM -->
+      <section class="tab-pane" id="tab-memory">
+        <div class="section-header">
+          <div>
+            <h3>🧠 Shared Memory & Multi-Account Swarm</h3>
+            <p>Memori terpusat yang dibagi bersama oleh seluruh akun AI Google agar bisa saling melanjutkan tugas dalam satu prompt.</p>
+          </div>
+          <button class="btn btn-primary" id="btn-add-fact">+ Tambah Fakta / Preferensi</button>
+        </div>
+
+        <div class="dashboard-row">
+          <!-- Shared Facts -->
+          <div class="card">
+            <div class="card-header">
+              <h3>Fakta & Aturan Bersama (Durable Knowledge)</h3>
+              <span class="card-tag">Tersinkron ke Seluruh Akun</span>
+            </div>
+            <p class="card-desc">Semua akun AI membaca daftar fakta ini setiap kali memulai perintah.</p>
+            <ul class="facts-list" id="facts-container" style="list-style: none; display: flex; flex-direction: column; gap: 8px;">
+              <!-- Injected via JS -->
+            </ul>
+          </div>
+
+          <!-- Active Workspace State -->
+          <div class="card">
+            <div class="card-header">
+              <h3>Status Workspace & Pipeline Terkini</h3>
+              <span class="card-tag">State Sharing</span>
+            </div>
+            <p class="card-desc">Variabel kerja yang dibagikan saat tugas berpindah antar akun.</p>
+            <pre class="state-box" id="workspace-state-json" style="background: var(--bg-input); padding: 12px; border-radius: var(--radius-sm); font-family: var(--font-mono); font-size: 11px; overflow-x: auto; color: #93c5fd;">{}</pre>
+
+            <h4 style="margin: 16px 0 8px; font-size: 13px;">Log Kolaborasi Lintas Akun:</h4>
+            <div class="activity-mini-log" id="account-activity-container" style="display: flex; flex-direction: column; gap: 6px; max-height: 200px; overflow-y: auto;">
+              <!-- Injected via JS -->
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 6: SETTINGS & OAUTH -->
+      <section class="tab-pane" id="tab-settings">
+        <div class="settings-grid">
+          <!-- CARD 1: TELEGRAM BOT CONFIG -->
+          <div class="card">
+            <div class="card-header">
+              <h3>Konfigurasi Telegram Bot</h3>
+              <span class="card-tag">Gateway Interaksi</span>
+            </div>
+            <div class="form-group">
+              <label>Telegram Bot Token (dari @BotFather)</label>
+              <div class="input-with-btn">
+                <input type="password" id="cfg-telegram-token" placeholder="123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ">
+                <button class="btn btn-secondary" id="btn-test-telegram">Tes Token</button>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>Whitelisted Chat IDs (Pisahkan dengan koma)</label>
+              <input type="text" id="cfg-allowed-chats" placeholder="Contoh: 12345678, 87654321">
+              <small class="helper-text">Hanya Chat ID yang terdaftar yang boleh mengendalikan terminal VPS.</small>
+            </div>
+
+            <div class="form-group">
+              <label class="toggle-label">
+                <input type="checkbox" id="cfg-telegram-enabled" checked>
+                <span>Aktifkan Polling Bot Telegram</span>
+              </label>
+            </div>
+            <button class="btn btn-primary" id="btn-save-telegram">Simpan Pengaturan Telegram</button>
+          </div>
+
+          <!-- CARD 2: ENGINE & OAUTH SETTINGS -->
+          <div class="card">
+            <div class="card-header">
+              <h3>Engine & Google OAuth</h3>
+              <span class="card-tag">Otentikasi LLM</span>
+            </div>
+
+            <div class="form-group">
+              <label>Pilih AI Engine</label>
+              <select id="cfg-active-engine">
+                <option value="agy">Antigravity CLI (agy) — Menggunakan Sesi Lokal (Rekomendasi)</option>
+                <option value="gemini_oauth">Google Gemini OAuth 2.0 (Login Web UI)</option>
+                <option value="gemini_api">Google AI Studio API Key (Resmi & Stabil)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>Pilihan Model</label>
+              <select id="cfg-active-model">
+                <option value="gemini-3.8-flash-high">Gemini 3.8 Flash (High) - Cepat & Cerdas</option>
+                <option value="gemini-3.8-flash-medium">Gemini 3.8 Flash (Medium)</option>
+                <option value="gemini-3.8-flash-low">Gemini 3.8 Flash (Low) - Paling Hemat</option>
+                <option value="claude-sonnet-4-6">Claude Sonnet 4.6 (Thinking)</option>
+                <option value="claude-opus-4-6-thinking">Claude Opus 4.6 (Thinking)</option>
+                <option value="gemini-1.5-flash">Gemini 1.5 Flash (Direct API)</option>
+              </select>
+            </div>
+
+            <!-- Multi-Account Google OAuth Pool Section -->
+            <div class="oauth-box" id="oauth-box-panel">
+              <div class="card-header" style="margin-bottom: 8px;">
+                <h4>Google OAuth Multi-Account Pool</h4>
+                <span class="card-tag" id="lbl-pool-count">0 / 3 Akun</span>
+              </div>
+              <p class="helper-text" style="margin-bottom: 12px;">
+                💡 <b>1-Klik Login Otomatis:</b> Tidak perlu repot membuat Client ID sendiri. Cukup klik tombol di bawah untuk menghubungkan akun Google Anda (bisa tambah hingga 3+ akun untuk membagi beban kuota & memori bersama).
+              </p>
+
+              <!-- Connected accounts list -->
+              <div class="accounts-list" id="accounts-container">
+                <!-- Injected via JS -->
+              </div>
+
+              <div style="margin-top: 14px; display: flex; gap: 8px;">
+                <button class="btn btn-outline" id="btn-connect-google" style="flex: 1;">
+                  ➕ Hubungkan Akun Google Baru
+                </button>
+              </div>
+
+              <!-- Collapsible Custom Credentials -->
+              <details style="margin-top: 14px; font-size: 12px; color: var(--text-dim);">
+                <summary style="cursor: pointer; padding: 4px 0;">⚙️ Gunakan Custom GCP Client ID (Opsional / Mahir)</summary>
+                <div style="margin-top: 8px;">
+                  <div class="form-group">
+                    <label>Google Client ID</label>
+                    <input type="text" id="cfg-google-client-id" placeholder="Biarkan kosong untuk menggunakan bawaan otomatis">
+                  </div>
+                  <div class="form-group">
+                    <label>Google Client Secret</label>
+                    <input type="password" id="cfg-google-client-secret" placeholder="Biarkan kosong untuk menggunakan bawaan otomatis">
+                  </div>
+                </div>
+              </details>
+            </div>
+
+            <!-- API Key Section -->
+            <div class="form-group" style="margin-top: 15px;">
+              <label>Gemini API Key (Opsional / Fallback)</label>
+              <input type="password" id="cfg-gemini-api-key" placeholder="AIzaSy...">
+            </div>
+
+            <button class="btn btn-primary" id="btn-save-engine">Simpan Pengaturan Engine</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 7: GUARDRAILS & CIRCUIT BREAKER -->
+      <section class="tab-pane" id="tab-guardrails">
+        <div class="card">
+          <div class="card-header">
+            <h3>Pengaturan Circuit Breaker & Anti-403 Protection</h3>
+            <button class="btn btn-sm btn-secondary" id="btn-reset-breaker">Reset Breaker Manual</button>
+          </div>
+          <p class="card-desc">Fitur pengaman yang mencegah akun Anda terblokir 403 dengan membatasi ritme pemanggilan LLM.</p>
+
+          <div class="guardrails-form">
+            <div class="form-group">
+              <label>Concurrency Limit (Jumlah Request Bersamaan)</label>
+              <input type="number" id="cfg-concurrency" min="1" max="5" value="1">
+              <small class="helper-text">Wajib 1 agar request diproses secara serial satu demi satu (Anti-Burst).</small>
+            </div>
+
+            <div class="form-group">
+              <label>Human Pacing Delay (Milidetik antar Tool Execution)</label>
+              <input type="number" id="cfg-pacing" min="500" max="10000" step="500" value="2000">
+              <small class="helper-text">Jeda alami (misal 2000ms = 2 detik) antar tool agar tidak terdeteksi bot spam.</small>
+            </div>
+
+            <div class="form-group">
+              <label>Maksimal Putaran Tool per Prompt (Max Turns)</label>
+              <input type="number" id="cfg-max-turns" min="3" max="30" value="15">
+              <small class="helper-text">Mencegah agen terjebak dalam infinite loop di terminal.</small>
+            </div>
+
+            <div class="form-group">
+              <label>Durasi Cooldown Circuit Breaker (Detik)</label>
+              <input type="number" id="cfg-cooldown-sec" min="60" max="1800" step="30" value="300">
+              <small class="helper-text">Lama jeda otomatis jika terdeteksi error 429 atau 403 (Default: 300 detik / 5 menit).</small>
+            </div>
+
+            <button class="btn btn-primary" id="btn-save-guardrails">Terapkan Guardrails</button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="js/app.js"></script>
+  <script src="js/flow-monitor.js"></script>
+</body>
+</html>

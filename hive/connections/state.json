@@ -1,0 +1,31 @@
+{
+  "note": "Written by the app. Read only; to change anything, see README.md.",
+  "webhookServer": {
+    "running": false,
+    "url": ""
+  },
+  "webhookResponder": "",
+  "webhooks": [],
+  "missions": [
+    {
+      "id": "heartbeat",
+      "label": "Floor heartbeat",
+      "to": "god",
+      "body": "Floor heartbeat: the team has gone quiet. Review the digest in your inbox, re-engage anyone stalled or blocked, and keep the board accurate — or rest if the work is genuinely done.",
+      "enabled": false,
+      "intervalMs": 120000,
+      "kind": "heartbeat",
+      "createdBy": "",
+      "lastFiredAt": "2026-11-17T05:50:43.598Z"
+    }
+  ],
+  "slack": {
+    "enabled": false,
+    "mode": "",
+    "channelId": "",
+    "responder": "",
+    "botTokenSet": false,
+    "appTokenSet": false,
+    "signingSecretSet": false
+  }
+}

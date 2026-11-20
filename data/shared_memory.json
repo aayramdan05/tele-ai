@@ -1,0 +1,21 @@
+{
+  "facts": [
+    "Format video default adalah FB Reels rasio 16:9 dengan bar judul kuning tebal di atas dan teks putih di bawah.",
+    "File output video disimpan di direktori data/output/.",
+    "Pencarian video menggunakan yt-dlp secara lokal tanpa menyentuh Google API.",
+    "Subtitle di-render langsung menggunakan FFmpeg dan Whisper."
+  ],
+  "workspace_state": {
+    "last_processed_video": "data/output/reels_EsT85PdljII_16x9.mp4",
+    "last_clip_title": "PREMAN PENSIUN 2 - Saeb Beraksi Lagi Untuk Meramaikan Khazanah Percopetan",
+    "active_pipeline": "idle"
+  },
+  "account_activity": [
+    {
+      "timestamp": "2026-11-20T13:32:45.000Z",
+      "account": "AI Agent",
+      "action": "Video Clipper Completed",
+      "details": "reels_EsT85PdljII_16x9.mp4"
+    }
+  ]
+}

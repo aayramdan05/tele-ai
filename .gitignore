@@ -1,0 +1,14 @@
+node_modules/
+data/temp/*
+!data/temp/.gitkeep
+data/output/*
+!data/output/.gitkeep
+data/download_history.json
+roster-backups/
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+*.log
+.DS_Store
+Thumbs.db

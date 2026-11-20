@@ -1,0 +1,58 @@
+{
+  "tasks": [
+    {
+      "id": "TAL-1",
+      "title": "Build Tele-AI Studio with Telegram Agent Bridge, OAuth & Live Flow Quota Monitor",
+      "status": "done",
+      "assignee": "god",
+      "priority": "high",
+      "createdAt": "2026-11-17T06:14:55.170Z",
+      "doneAt": "2026-11-17T06:14:55.170Z",
+      "updatedAt": "2026-11-17T06:40:30.109Z"
+    },
+    {
+      "id": "TAL-4",
+      "title": "TAL-2 Backend: Migrasi ke PostgreSQL + Hardening API & Session Management",
+      "status": "blocked",
+      "assignee": "worker-backend",
+      "priority": "high",
+      "createdAt": "2026-11-17T06:39:00.000Z",
+      "startedAt": "2026-11-17T06:40:30.109Z",
+      "updatedAt": "2026-11-17T06:43:38.930Z",
+      "humanQA": [
+        {
+          "q": "**Apa password untuk user `postgres` di PostgreSQL 18 yang terinstall di mesin ini?**\n\nKoneksi ke `localhost:5432` gagal: `FATAL: password authentication failed for user \"postgres\"`\n\nSaya butuh password ini agar worker-backend bisa membuat database `teleai` dan menginisialisasi schema.",
+          "options": [
+            {
+              "label": "Ketik passwordnya langsung di chat"
+            },
+            {
+              "label": "Saya lupa — tolong bantu reset password postgres"
+            },
+            {
+              "label": "Ubah sementara pg_hba.conf ke trust (saya bantu step-nya)"
+            }
+          ],
+          "recommended": 0,
+          "askedAt": "2026-11-17T06:43:00Z",
+          "from": "god"
+        }
+      ]
+    },
+    {
+      "id": "TAL-5",
+      "title": "TAL-3 Frontend/Dev: Upgrade Web UI Dashboard + PostgreSQL Admin Panel + UX Polish",
+      "status": "doing",
+      "assignee": "worker-frontend",
+      "priority": "high",
+      "createdAt": "2026-11-17T06:39:00.000Z",
+      "startedAt": "2026-11-17T06:40:30.109Z",
+      "updatedAt": "2026-11-17T06:43:38.930Z"
+    }
+  ],
+  "ticket": {
+    "prefix": "TAL",
+    "next": 6,
+    "aliases": {}
+  }
+}
